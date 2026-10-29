@@ -147,7 +147,7 @@ In the sidebar:
 
 The same steps exist on the command line: `reiniciar_demo.py`, `ejecutar_plan.py --leer-correo`, `aprobar.py`, `ejecutar_plan.py --deposito-globex`.
 
-Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 93 tests). The engine lives in `motor_comun/`.
+Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 98 tests). The engine lives in `motor_comun/`.
 
 ## Things the sandbox taught us
 
