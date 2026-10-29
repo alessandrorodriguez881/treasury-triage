@@ -1,0 +1,14 @@
+{
+  "reserva_rota_pct": 6.5,
+  "empresa_parada_pct": 0.0,
+  "caja_negativa_pct": 0.0,
+  "coste_medio": 359.73403,
+  "pagado_medio_usd": 19346.522380000002,
+  "Treasury Triage (misma semilla)": {
+    "reserva_rota_pct": 6.6,
+    "empresa_parada_pct": 0.0,
+    "caja_negativa_pct": 0.0,
+    "coste_medio": 350.61258999999995,
+    "pagado_medio_usd": 19484.725870000002
+  }
+}

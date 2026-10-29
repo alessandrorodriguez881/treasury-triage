@@ -1,0 +1,171 @@
+{
+  "semanas": 1000,
+  "agentes": {
+    "Treasury Triage": {
+      "reserva_rota_pct": 0.7,
+      "reserva_rota_ic": [
+        0.33948250792319973,
+        1.437849692694906
+      ],
+      "empresa_parada_pct": 11.7,
+      "coste_medio": 847.98054,
+      "coste_ic": [
+        738.7957296882853,
+        957.1653503117147
+      ],
+      "pagado_medio_usd": 19392.167100000002
+    },
+    "Treasury Triage sin correos": {
+      "reserva_rota_pct": 1.2,
+      "reserva_rota_ic": [
+        0.6877579092159561,
+        2.0857473928157595
+      ],
+      "empresa_parada_pct": 11.2,
+      "coste_medio": 796.29101,
+      "coste_ic": [
+        689.0464738313074,
+        903.5355461686927
+      ],
+      "pagado_medio_usd": 19806.53625
+    },
+    "Receta sin previsión": {
+      "reserva_rota_pct": 0.0,
+      "reserva_rota_ic": [
+        0.0,
+        0.3826898586390522
+      ],
+      "empresa_parada_pct": 15.0,
+      "coste_medio": 1221.97829,
+      "coste_ic": [
+        1100.034471521322,
+        1343.922108478678
+      ],
+      "pagado_medio_usd": 15974.21609
+    },
+    "Pagar por orden": {
+      "reserva_rota_pct": 11.9,
+      "reserva_rota_ic": [
+        10.037486818688018,
+        14.054122853594942
+      ],
+      "empresa_parada_pct": 0.0,
+      "coste_medio": 99.76034,
+      "coste_ic": [
+        89.38671191856255,
+        110.13396808143744
+      ],
+      "pagado_medio_usd": 22446.48107
+    }
+  },
+  "diferencias": {
+    "H1 reserva rota: Triage - por orden (puntos)": [
+      -11.200000000000001,
+      -13.155639594153849,
+      -9.244360405846152
+    ],
+    "H2 coste: Triage - receta (USD/semana)": [
+      -373.99775,
+      -435.3453578050461,
+      -312.6501421949539
+    ],
+    "H3 reserva rota: Triage - sin correos (puntos)": [
+      -0.5,
+      -0.9373910274695983,
+      -0.06260897253040162
+    ]
+  },
+  "calibracion": {
+    "tramos": [
+      {
+        "tramo": "20%-30%",
+        "n": 29,
+        "previsto": 0.2244586928751214,
+        "observado": 0.4482758620689655
+      },
+      {
+        "tramo": "30%-40%",
+        "n": 25,
+        "previsto": 0.3790625295460092,
+        "observado": 0.28
+      },
+      {
+        "tramo": "40%-50%",
+        "n": 122,
+        "previsto": 0.45223682778706276,
+        "observado": 0.5327868852459017
+      },
+      {
+        "tramo": "50%-60%",
+        "n": 92,
+        "previsto": 0.5498714957334202,
+        "observado": 0.4891304347826087
+      },
+      {
+        "tramo": "60%-70%",
+        "n": 420,
+        "previsto": 0.652748527079844,
+        "observado": 0.6976190476190476
+      },
+      {
+        "tramo": "70%-80%",
+        "n": 652,
+        "previsto": 0.7542446281525764,
+        "observado": 0.7653374233128835
+      },
+      {
+        "tramo": "80%-90%",
+        "n": 1058,
+        "previsto": 0.848611432412049,
+        "observado": 0.9102079395085066
+      },
+      {
+        "tramo": "90%-100%",
+        "n": 104,
+        "previsto": 0.906035787358669,
+        "observado": 0.9038461538461539
+      }
+    ],
+    "brier_con_correos": 0.14885423616882398,
+    "brier_sin_correos": 0.15878016611918433,
+    "brier_media_fija": 0.16533807326640687,
+    "h4_peor_desvio_puntos": 8.055005745883893
+  },
+  "semanas_todo_a_una_persona_pct": 0.0,
+  "aprobaciones": {
+    "semanas_con_aprobacion_pct": 80.0,
+    "algun_cobro_tarde_si_pidio_pct": 46.25,
+    "algun_cobro_tarde_si_no_pidio_pct": 37.5
+  },
+  "aprobacion_regla_fija": {
+    "semanas_con_aprobacion_pct": 80.0,
+    "cobro_tarde_si_pide_pct": 46.25,
+    "cobro_tarde_si_no_pide_pct": 37.5,
+    "diferencia_puntos": [
+      8.750000000000002,
+      1.2030653987860767,
+      16.296934601213927
+    ]
+  },
+  "aprobacion_regla_relativa": {
+    "semanas_con_aprobacion_pct": 33.0,
+    "cobro_tarde_si_pide_pct": 60.60606060606061,
+    "cobro_tarde_si_no_pide_pct": 36.56716417910448,
+    "diferencia_puntos": [
+      24.03889642695613,
+      17.628494313617903,
+      30.449298540294357
+    ]
+  },
+  "hipotesis": {
+    "H1": true,
+    "H2": true,
+    "H3": true,
+    "H4": true,
+    "H5": true,
+    "H6": true
+  },
+  "clientes": "normales",
+  "semilla": 2028,
+  "segundos": 24.4
+}

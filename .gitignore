@@ -1,0 +1,6 @@
+.env
+data/
+data_simulada/
+__pycache__/
+*.pyc
+.pytest_cache/

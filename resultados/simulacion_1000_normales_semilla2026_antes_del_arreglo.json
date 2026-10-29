@@ -1,0 +1,149 @@
+{
+  "semanas": 1000,
+  "agentes": {
+    "Treasury Triage": {
+      "reserva_rota_pct": 0.5,
+      "reserva_rota_ic": [
+        0.21375039957652503,
+        1.1651125604761368
+      ],
+      "empresa_parada_pct": 13.2,
+      "coste_medio": 1010.19628,
+      "coste_ic": [
+        894.2766835643456,
+        1126.1158764356544
+      ],
+      "pagado_medio_usd": 18447.97951
+    },
+    "Treasury Triage sin correos": {
+      "reserva_rota_pct": 0.9,
+      "reserva_rota_ic": [
+        0.4742006589011481,
+        1.7016007822824013
+      ],
+      "empresa_parada_pct": 12.6,
+      "coste_medio": 956.0300699999999,
+      "coste_ic": [
+        842.8811576475822,
+        1069.1789823524177
+      ],
+      "pagado_medio_usd": 18913.845759999997
+    },
+    "Receta sin previsión": {
+      "reserva_rota_pct": 0.0,
+      "reserva_rota_ic": [
+        0.0,
+        0.3826898586390522
+      ],
+      "empresa_parada_pct": 16.8,
+      "coste_medio": 1354.7265099999997,
+      "coste_ic": [
+        1228.0097919758211,
+        1481.4432280241783
+      ],
+      "pagado_medio_usd": 15541.379030000002
+    },
+    "Pagar por orden": {
+      "reserva_rota_pct": 13.8,
+      "reserva_rota_ic": [
+        11.800423096411535,
+        16.076644361243144
+      ],
+      "empresa_parada_pct": 0.0,
+      "coste_medio": 116.43051000000001,
+      "coste_ic": [
+        104.12490878494295,
+        128.7361112150571
+      ],
+      "pagado_medio_usd": 22669.931450000004
+    }
+  },
+  "diferencias": {
+    "H1 reserva rota: Triage - por orden (puntos)": [
+      -13.3,
+      -15.405759149949871,
+      -11.194240850050132
+    ],
+    "H2 coste: Triage - receta (USD/semana)": [
+      -344.53022999999996,
+      -406.0818086484453,
+      -282.9786513515546
+    ],
+    "H3 reserva rota: Triage - sin correos (puntos)": [
+      -0.4,
+      -0.7914109688633504,
+      -0.008589031136649761
+    ]
+  },
+  "calibracion": {
+    "tramos": [
+      {
+        "tramo": "20%-30%",
+        "n": 40,
+        "previsto": 0.278660075340521,
+        "observado": 0.45
+      },
+      {
+        "tramo": "30%-40%",
+        "n": 33,
+        "previsto": 0.3831573669872403,
+        "observado": 0.5454545454545454
+      },
+      {
+        "tramo": "40%-50%",
+        "n": 155,
+        "previsto": 0.4552696490663823,
+        "observado": 0.4967741935483871
+      },
+      {
+        "tramo": "50%-60%",
+        "n": 289,
+        "previsto": 0.5392677809156174,
+        "observado": 0.6332179930795848
+      },
+      {
+        "tramo": "60%-70%",
+        "n": 372,
+        "previsto": 0.6596437075363176,
+        "observado": 0.7634408602150538
+      },
+      {
+        "tramo": "70%-80%",
+        "n": 896,
+        "previsto": 0.7501080937636129,
+        "observado": 0.859375
+      },
+      {
+        "tramo": "80%-90%",
+        "n": 415,
+        "previsto": 0.8255285864860236,
+        "observado": 0.7855421686746988
+      },
+      {
+        "tramo": "90%-100%",
+        "n": 287,
+        "previsto": 0.9246462988623266,
+        "observado": 0.9303135888501742
+      }
+    ],
+    "brier_con_correos": 0.1641335073293661,
+    "brier_sin_correos": 0.16996026469621708,
+    "brier_media_fija": 0.17089136933849344,
+    "h4_peor_desvio_puntos": 10.926690623638713
+  },
+  "semanas_todo_a_una_persona_pct": 0.0,
+  "aprobaciones": {
+    "semanas_con_aprobacion_pct": 76.6,
+    "algun_cobro_tarde_si_pidio_pct": 46.60574412532637,
+    "algun_cobro_tarde_si_no_pidio_pct": 41.88034188034188
+  },
+  "hipotesis": {
+    "H1": true,
+    "H2": true,
+    "H3": true,
+    "H4": false
+  },
+  "clientes": "normales",
+  "semilla": 2026,
+  "segundos": 57.3
+}

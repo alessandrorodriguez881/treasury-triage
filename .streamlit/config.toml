@@ -1,0 +1,38 @@
+# Tema basado en la plantilla «shadcn» de Streamlit (como Receivables Copilot), con un acento propio (índigo)
+[theme]
+base = "light"
+primaryColor = "#4338CA"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#FAFAFA"
+codeBackgroundColor = "#F4F4F5"
+textColor = "#09090B"
+linkColor = "#4338CA"
+borderColor = "#E4E4E7"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "8px"
+buttonRadius = "8px"
+font = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+baseFontSize = 14
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+grayColor = "#71717A"
+blueColor = "#2563EB"
+greenColor = "#16A34A"
+redColor = "#DC2626"
+orangeColor = "#EA580C"
+dataframeBorderColor = "#E4E4E7"
+dataframeHeaderBackgroundColor = "#FAFAFA"
+
+[theme.sidebar]
+backgroundColor = "#FAFAFA"
+secondaryBackgroundColor = "#F4F4F5"
+borderColor = "#E4E4E7"
+primaryColor = "#4338CA"
+
+[server]
+headless = true
+
+[client]
+# Sin el botón «Deploy» ni el menú de Streamlit: en el vídeo solo se ve el producto
+toolbarMode = "minimal"
