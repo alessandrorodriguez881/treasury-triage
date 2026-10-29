@@ -6,7 +6,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from triage_core.collections_decision import (DISCOUNT, ESCALATE, REMIND, WAIT, CashNeed, Invoice,
+from triage_core.collections_decision import (DISCOUNT, ESCALATE, PLAN, REMIND, WAIT, CashNeed, Invoice,
                                               ReceivablesPolicy, _options, plan_collections)
 from triage_core.cash_simulation import cash_bands, simulate
 from triage_core.collections_model import CollectionsModel, CustomerProfile
@@ -104,3 +104,22 @@ def test_when_nothing_is_safe_it_takes_the_cheapest_plan_not_discounts_at_any_pr
 def test_when_nothing_is_safe_the_agent_says_so():
     plan = plan_collections(INVOICES, PROFILES, start_cash=0, needs=[CashNeed("payroll", 50_000, 7)])
     assert not plan.safe and plan.notes
+
+
+def test_a_customer_who_asks_for_time_gets_a_payment_plan_never_a_discount():
+    """Who just said they cannot pay now is not offered money off for paying early: part now, the rest later."""
+    pide = Invoice("INV-104", "Contoso", 4_000, -5, asked_for_time=True)
+    con_plazos = ReceivablesPolicy(payment_plans=True)  # off by default: they did not help payroll in the simulation
+    assert DISCOUNT not in _options(pide, con_plazos) and PLAN in _options(pide, con_plazos)
+    assert PLAN not in _options(pide, ReceivablesPolicy())
+    plan = plan_collections([pide], {"Contoso": CollectionsModel.apply_signal(PROFILES["Contoso"],
+                                                                               SIGNAL_LIKELIHOOD["asks_for_more_time"],
+                                                                               "asks for more time")},
+                            start_cash=7_000, needs=PAYROLL, policy=con_plazos)
+    d = plan.decisions[0]
+    assert d.action == PLAN and d.needs_approval  # changing the terms is the owner's call
+    assert len(plan.receipts) == 2  # half now, the rest after payday
+    assert plan.p_short < plan.p_short_if_wait
+    sin_plazos = plan_collections([pide], {"Contoso": PROFILES["Contoso"]}, start_cash=7_000, needs=PAYROLL,
+                                  policy=ReceivablesPolicy(payment_plans=False))
+    assert sin_plazos.decisions[0].action != PLAN
