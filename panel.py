@@ -18,8 +18,9 @@ import streamlit as st
 import ajustar_saldos_demo
 import preparar_sandbox
 from aprobaciones import APROBACIONES, CON_RESERVA, cotizacion, titulo
-from demo import (ENV, conciliar, convertir, deposito_globex, esperar_conciliacion, hay_grabacion, leer_correos,
-                  pagar, situacion, ya_conciliados, ya_hecho)
+from demo import (ENV, conciliar, convertir, deposito_globex, esperar_conciliacion, hay_grabacion, huella,
+                  leer_correos, pagar, situacion, ya_conciliados, ya_hecho)
+from demo import resumen as plan_para_claude
 from escenario import (BANDEJA, BASE, COBROS, CONCEPTOS, DATA, MODEL, PAGO_GLOBEX, facturas_de, facturas_proveedor,
                        fecha_ronda, guardar_facturas, guardar_senales, nueva_ronda, receipts, ronda_actual, senales_de)
 from modo import SIMULADO, conectar
@@ -161,7 +162,8 @@ def leer(log, con_claude: bool) -> None:
     lectura = leer_correos(rail, libro, ronda, globex_pagado, con_claude, repetir=True)
     guardar_facturas(ronda, lectura.facturas)
     guardar_senales(ronda, lectura.senales)
-    st.session_state.lectura = {"pasos": lectura.pasos, "resumen": lectura.resumen, "con_claude": con_claude}
+    st.session_state.lectura = {"pasos": lectura.pasos, "resumen": lectura.resumen, "con_claude": con_claude,
+                                "plan": huella(lectura.plan)}
     log(f"Inbox read: {len(lectura.facturas)} invoice(s) and {len(lectura.senales)} signal(s) accepted")
 
 
@@ -425,7 +427,13 @@ with hoy:
                 st.caption("The inbox has not been read in this round yet. Amounts, limits and approvals are "
                            "decided in code; Claude reads emails and invoices and explains.")
         with der:
-            if lectura and lectura["resumen"]:
+            if lectura and lectura["resumen"] and lectura.get("plan") not in (None, huella(plan_para_claude(s))):
+                st.info("Claude wrote its briefing before the latest changes (payments made or received since), so "
+                        "its numbers are out of date. Everything else on this screen is current.",
+                        title="Claude's briefing for the owner", icon=":material/smart_toy:")
+                with st.expander("The briefing as Claude wrote it (out of date)", icon=":material/history:"):
+                    st.markdown(md(lectura["resumen"]))
+            elif lectura and lectura["resumen"]:
                 st.info(md(lectura["resumen"]), title="Claude's briefing for the owner", icon=":material/smart_toy:")
             with st.expander(f"Supplier invoices ({len(facturas_proveedor(fecha_ronda(ronda)))})",
                              icon=":material/description:"):

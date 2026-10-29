@@ -4,6 +4,8 @@
 
 A founder of a small multi-currency business has five bills due in the next 72 hours, in USD, EUR and GBP, and not enough cash to pay all of them without breaking the minimum reserve. Treasury Triage decides what to **fund, convert, defer or escalate**, does it on Airwallex, and **lowers its own autonomy when its receivables forecast becomes less reliable**.
 
+![Treasury Triage after step 3: the freight bill is paid; two FX conversions wait for the owner, each bound to an exact Airwallex quote, with the reason and the emails behind it](docs/pantalla.jpg)
+
 ## For judges: try it in 2 minutes, no keys needed
 
 ```bash

@@ -55,6 +55,7 @@ class Lectura:
     pasos: list[str] = field(default_factory=list)
     resumen: str = ""
     facturas: list = field(default_factory=list)
+    plan: dict | None = None  # el último plan que vio Claude: sobre él escribió su resumen
 
 
 def tipos(rail: AirwallexRail) -> dict[str, float]:
@@ -95,6 +96,15 @@ def situacion(rail: AirwallexRail, libro: Ledger, ronda: str, senales_correo: li
     # La autonomía depende de cuánto peor que lo normal en esta cartera es la previsión de esta semana
     plan = plan_treasury(pendientes, saldos, rates, recs, TreasuryPolicy(), base=BASE, usual_confidence=MODEL.pool_rate)
     return Situacion(saldos, rates, pagadas, pendientes, senales, plan, enviadas, obligaciones, comprobadas)
+
+
+def huella(plan: dict | None) -> tuple | None:
+    """Lo que cuenta el resumen de Claude y no se mueve con el tipo de cambio del momento: la confianza, lo pagado,
+    las decisiones y las divisas que hay que comprar (y si piden permiso). Si cambia, su resumen ya no está al día."""
+    if plan is None:
+        return None
+    return (plan["confidence"], tuple(plan["already_paid"]), tuple((d["id"], d["action"]) for d in plan["decisions"]),
+            tuple((c["buy"], c["needs_owner_approval"]) for c in plan["conversions"]))
 
 
 def resumen(s: Situacion) -> dict:
@@ -158,7 +168,7 @@ def repetir_grabacion(hoy: date, recalcular: Callable[[list, list], dict]) -> Le
     bandeja.recompute_plan()
     return Lectura(bandeja.senales, [f"Replay of a real Claude run on {g['date']} (no Claude key here): the same "
                                      "tool calls, checked again by code"] + bandeja.registro,
-                   g["briefing"] if bandeja.plan == g.get("plan") else NO_CUADRA, bandeja.facturas)
+                   g["briefing"] if bandeja.plan == g.get("plan") else NO_CUADRA, bandeja.facturas, bandeja.plan)
 
 
 def leer_correos(rail: AirwallexRail, libro: Ledger, ronda: str, globex_pagado: bool, con_claude: bool,
@@ -187,7 +197,7 @@ def leer_correos(rail: AirwallexRail, libro: Ledger, ronda: str, globex_pagado: 
         explicacion = leer_bandeja(cliente(ENV), bandeja)
     except anthropic.APIError as e:
         raise RuntimeError(f"Claude could not read the inbox ({type(e).__name__}). No money was moved") from e
-    lectura = Lectura(bandeja.senales, bandeja.registro, explicacion, bandeja.facturas)
+    lectura = Lectura(bandeja.senales, bandeja.registro, explicacion, bandeja.facturas, bandeja.plan)
     if GRABAR:
         guardar_grabacion(hoy, lectura, bandeja.plan)
     return lectura

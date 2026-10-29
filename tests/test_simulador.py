@@ -114,6 +114,12 @@ def test_a_real_claude_run_is_replayed_and_checked_again_by_code(abierto, tmp_pa
     assert len(repetida.facturas) == 5
     assert repetida.facturas[0].due_date == (fecha_ronda(otra) + timedelta(days=1)).isoformat()
     assert repetida.resumen == "Briefing written by Claude"  # same plan as Claude saw: its briefing is shown
+    # the screen keeps what the briefing talks about, without the live FX costs (they move by the second)
+    ahora = demo.resumen(demo.situacion(abierto, libro, otra, repetida.senales, False, repetida.facturas))
+    assert demo.huella(repetida.plan) == demo.huella(ahora)
+    assert demo.huella({**ahora, "confidence": "93%"}) != demo.huella(ahora)
+    costes = [{**c, "approx_cost": "1.00 USD"} for c in ahora["conversions"]]
+    assert demo.huella({**ahora, "conversions": costes}) == demo.huella(ahora)
 
 
 def test_claudes_recorded_briefing_is_hidden_when_the_numbers_changed(abierto, tmp_path, monkeypatch):
