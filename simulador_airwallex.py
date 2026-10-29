@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
+import threading
 from urllib.parse import urlparse
 import uuid
 
@@ -23,6 +24,10 @@ from triage_core.policy import PAYOUT_FEES
 TIPOS = {"USD": 1.0, "EUR": 1.1265, "GBP": 1.346}  # USD por unidad, nivel CLIENT del sandbox el 27-oct
 RECARGO_COTIZACION = 0.0012                        # 1,1279 frente a 1,1265 en el sandbox
 ORDEN = ["SCHEDULED", "PROCESSING", "SENT", "PAID"]
+
+# En la pantalla, una sola capa (y un solo simulador) atiende a todos los visitantes, cada uno en su carpeta: las
+# llamadas van de una en una, para que una no cargue el estado de un visitante mientras otra guarda el de otro.
+_CANDADO = threading.Lock()
 
 
 class _Error(Exception):
@@ -61,6 +66,10 @@ class SandboxSimulado:
         return _Respuesta(200, {"token": "simulated-token", "expires_at": (_ahora() + timedelta(minutes=30)).isoformat()})
 
     def request(self, method, url, json=None, params=None, headers=None, timeout=None):
+        with _CANDADO:
+            return self._atender(method, url, json, params)
+
+    def _atender(self, method, url, json, params):
         self._cargar()
         try:
             datos = self._despachar(method, urlparse(url).path.removeprefix("/api/v1/"), json or {}, params or {})
@@ -75,6 +84,8 @@ class SandboxSimulado:
     def _cargar(self) -> None:
         if self.ruta and self.ruta.exists():
             self.estado = json.loads(self.ruta.read_text(encoding="utf-8"))
+        elif self.ruta:  # visitante nuevo: empieza vacío, sin heredar lo que dejó en memoria el anterior
+            self.estado = json.loads(json.dumps(self.VACIO))
 
     def _guardar(self) -> None:
         if self.ruta:

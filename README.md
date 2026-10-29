@@ -80,7 +80,7 @@ The demo has two traps:
 | The sandbox answers HTTP 500 while moving a transfer | Checked and retried once; if still stuck, the next run finishes it | `test_two_500s_leave_it_in_flight_and_the_next_run_finishes_it` |
 | The bought currency is not in the balance yet | It waits, and says so instead of paying | `test_if_the_money_never_shows_up_it_says_so_instead_of_paying` |
 | Keeping the reserve would stop the business | Only that bill is paid from the reserve, never below zero, after a person approves | `test_a_bill_paid_from_the_reserve_never_leaves_without_a_person` |
-| Someone edits the ledger or its audit trail | The hash chain or the ledger check fails (`verificar_auditoria.py`) | `test_the_audit_trail_catches_an_edited_event_and_a_ledger_changed_by_hand` |
+| Someone edits, deletes or adds a ledger entry, or edits its audit trail | The hash chain or the ledger check fails (`verificar_auditoria.py`), and the agent moves no money until a person looks | `test_the_audit_trail_catches_an_edited_event_and_a_ledger_changed_by_hand` |
 | A retry of a simulated deposit | Never retried blindly: it could double the money | `test_simulation_without_request_id_is_never_retried` |
 | A deposit for the right amount from someone else | Not taken as the customer's payment: it needs the customer's name or the invoice number, and each deposit counts once | `test_a_deposit_counts_only_when_it_matches_the_invoice_and_only_once` |
 
@@ -126,7 +126,7 @@ Full write-up: `RESULTADOS_SIMULACION.md` (Spanish).
   - the customer's deposit (`simulation/deposit/create`);
   - transfer status changes (`simulation/transfers/{id}/transition`).
 - **Synthetic:** the business, its customers' payment histories, the supplier invoices and the emails.
-- **Demo mode (no keys):** `simulador_airwallex.py` plays the sandbox under the same wrapper, and Claude's step replays a recorded real run. The screen says so in a banner. It keeps its own ledger (`data_simulada/`), apart from the real sandbox's.
+- **Demo mode (no keys):** `simulador_airwallex.py` plays the sandbox under the same wrapper, and Claude's step replays a recorded real run (recorded on the simulator, from the demo's starting balances). Claude's briefing is shown only if the plan on screen is the one Claude saw; if not (say, a customer already paid), the screen says so instead. `TT_GRABAR=1` with a Claude key records a new run. The screen says so in a banner. It keeps its own ledger (`data_simulada/`), apart from the real sandbox's.
 
 ## Run it
 

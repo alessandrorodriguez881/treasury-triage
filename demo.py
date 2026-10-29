@@ -8,11 +8,13 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import time
 from typing import Callable
 
-from aprobaciones import APROBADA, RECHAZADA, aprobacion_de_conversion, aprobacion_de_reserva, cotizacion_aprobada
+from aprobaciones import (APROBADA, RECHAZADA, aprobacion_de_conversion, aprobacion_de_reserva, cerrar_sobrantes,
+                          cotizacion_aprobada, rechazo_de_una_persona)
 from escenario import (BASE, COBROS, DIVISAS, EN_FICHA, MODEL, OBLIGATIONS, PAGO_GLOBEX, PROVEEDORES, SENAL_GLOBEX,
                        facturas_ensayo, facturas_proveedor, fecha_ronda, receipts)
 from preparar_sandbox import divisas
@@ -27,6 +29,10 @@ Log = Callable[[str], None]
 ENV = Path(__file__).with_name(".env")
 # La última lectura de Claude de verdad: sin clave (p. ej. en la demo pública), la pantalla repite sus llamadas
 GRABACION = Path(__file__).with_name("grabacion_claude.json")
+GRABAR = os.environ.get("TT_GRABAR") == "1"  # la grabación del repositorio solo se cambia a propósito
+NO_CUADRA = ("Not shown: Claude wrote this briefing for the numbers at the start of a round, and they have "
+             "changed here (for example, a customer has already paid). Everything else on this screen is "
+             "recomputed now by code.")
 
 
 @dataclass
@@ -116,8 +122,9 @@ def resumen(s: Situacion) -> dict:
     }
 
 
-def guardar_grabacion(hoy: date, lectura: Lectura) -> None:
-    """Guarda lo que registró Claude (con los vencimientos en días desde la ronda) y su resumen para el dueño."""
+def guardar_grabacion(hoy: date, lectura: Lectura, plan: dict | None) -> None:
+    """Guarda lo que registró Claude (con los vencimientos en días desde la ronda), el último plan que vio y su
+    resumen para el dueño."""
     facturas = []
     for f in lectura.facturas:
         try:
@@ -127,7 +134,8 @@ def guardar_grabacion(hoy: date, lectura: Lectura) -> None:
         except ValueError:  # una fecha que no es ISO no se puede mover a otro día: esa lectura no se graba
             continue
     GRABACION.write_text(json.dumps({"date": hoy.isoformat(), "invoices": facturas,
-                                     "signals": [asdict(s) for s in lectura.senales], "briefing": lectura.resumen},
+                                     "signals": [asdict(s) for s in lectura.senales], "plan": plan,
+                                     "briefing": lectura.resumen},
                                     indent=2, ensure_ascii=False), encoding="utf-8")
 
 
@@ -135,20 +143,22 @@ def hay_grabacion() -> bool:
     return GRABACION.exists()
 
 
-def repetir_grabacion(hoy: date) -> Lectura:
+def repetir_grabacion(hoy: date, recalcular: Callable[[list, list], dict]) -> Lectura:
     """Repite las llamadas de la última lectura de Claude de verdad. El código las vuelve a comprobar todas, igual
-    que en directo (con los vencimientos movidos al día de esta ronda), y el resumen es el que escribió Claude."""
+    que en directo (con los vencimientos movidos al día de esta ronda). El resumen es el que escribió Claude, solo
+    si el plan de ahora es el mismo que vio él: si no, sus cifras no serían las de la pantalla."""
     from agente_ia import Bandeja
     g = json.loads(GRABACION.read_text(encoding="utf-8"))
-    bandeja = Bandeja(lambda senales, facturas: {}, facturas=facturas_proveedor(hoy), hoy=hoy)
+    bandeja = Bandeja(recalcular, facturas=facturas_proveedor(hoy), hoy=hoy)
     for f in g["invoices"]:
         bandeja.record_invoice(f["document_id"], f["obligation_id"], f["amount"], f["currency"],
                                (hoy + timedelta(days=f["due_in_days"])).isoformat(), f["pay_to"])
     for s in g["signals"]:
         bandeja.record_signal(s["message_id"], s["customer"], s["signal"], s["quote"])
+    bandeja.recompute_plan()
     return Lectura(bandeja.senales, [f"Replay of a real Claude run on {g['date']} (no Claude key here): the same "
-                                     "tool calls, checked again by code"] + bandeja.registro, g["briefing"],
-                   bandeja.facturas)
+                                     "tool calls, checked again by code"] + bandeja.registro,
+                   g["briefing"] if bandeja.plan == g.get("plan") else NO_CUADRA, bandeja.facturas)
 
 
 def leer_correos(rail: AirwallexRail, libro: Ledger, ronda: str, globex_pagado: bool, con_claude: bool,
@@ -158,8 +168,9 @@ def leer_correos(rail: AirwallexRail, libro: Ledger, ronda: str, globex_pagado: 
     Sin Claude: con `repetir`, la última lectura de Claude de verdad; si no, lo que registraría Claude (ensayo).
     Las dos pasan por las mismas comprobaciones del código."""
     hoy = fecha_ronda(ronda)
+    plan_de = lambda senales, facturas: resumen(situacion(rail, libro, ronda, senales, globex_pagado, facturas))
     if not con_claude and repetir and hay_grabacion():
-        return repetir_grabacion(hoy)
+        return repetir_grabacion(hoy, plan_de)
     if not con_claude:
         from agente_ia import Bandeja
         bandeja = Bandeja(lambda senales, facturas: {}, facturas=facturas_proveedor(hoy), hoy=hoy)
@@ -171,15 +182,14 @@ def leer_correos(rail: AirwallexRail, libro: Ledger, ronda: str, globex_pagado: 
                        + bandeja.registro, facturas=bandeja.facturas)
     import anthropic
     from agente_ia import Bandeja, cliente, leer_bandeja  # solo hace falta el paquete anthropic aquí
-    bandeja = Bandeja(lambda senales, facturas: resumen(situacion(rail, libro, ronda, senales, globex_pagado,
-                                                                  facturas)),
-                      facturas=facturas_proveedor(hoy), hoy=hoy)
+    bandeja = Bandeja(plan_de, facturas=facturas_proveedor(hoy), hoy=hoy)
     try:
         explicacion = leer_bandeja(cliente(ENV), bandeja)
     except anthropic.APIError as e:
         raise RuntimeError(f"Claude could not read the inbox ({type(e).__name__}). No money was moved") from e
     lectura = Lectura(bandeja.senales, bandeja.registro, explicacion, bandeja.facturas)
-    guardar_grabacion(hoy, lectura)
+    if GRABAR:
+        guardar_grabacion(hoy, lectura, bandeja.plan)
     return lectura
 
 
@@ -306,6 +316,7 @@ def convertir(rail: AirwallexRail, libro: Ledger, book: ApprovalBook, s: Situaci
     """Hace las conversiones del plan. Devuelve las divisas cuyo pago espera a una conversión que no se hizo.
 
     Después de cada conversión espera a ver la divisa comprada en el saldo, antes de pagar con ella."""
+    libro.require_intact()  # con el libro o su registro tocados a mano, no se mueve dinero
     paradas = set()
     for c in s.plan.conversions:
         # El importe va en la clave: repetir el mismo plan no convierte dos veces, pero si un pago falló
@@ -317,6 +328,11 @@ def convertir(rail: AirwallexRail, libro: Ledger, book: ApprovalBook, s: Situaci
         # Si una persona ya aprobó esta misma conversión, se hace al coste que aprobó, aunque ahora
         # el agente pudiera hacerla solo (p. ej. tras el pago de Globex sube la confianza)
         quote_id = cotizacion_aprobada(rail, book, c.buy_currency, c.buy_amount, ronda)
+        rechazo = None if quote_id else rechazo_de_una_persona(book, c.buy_currency, ronda)
+        if rechazo:  # el «no» de una persona vale para toda la ronda, aunque ahora el agente pudiera hacerla solo
+            log(f"{c.buy_currency} conversion rejected by a person in this round [{rechazo[:8]}]: not done")
+            paradas.add(c.buy_currency)
+            continue
         if not quote_id and c.needs_approval:
             estado, ref = aprobacion_de_conversion(rail, book, c.sell_currency, c.buy_currency, c.buy_amount,
                                                    motivo_aprobacion(s), ronda, s.senales, log=log)
@@ -344,6 +360,8 @@ def convertir(rail: AirwallexRail, libro: Ledger, book: ApprovalBook, s: Situaci
         libro.update(entrada, conv.get("status", "SUBMITTED"), conv.get("conversion_id") or conv.get("id"))
         log(f"Converted: bought {conv.get('buy_amount')} {c.buy_currency} for {conv.get('sell_amount')} USD "
             f"at {conv.get('client_rate')} ({conv.get('status')})")
+        for fp in cerrar_sobrantes(book, c.buy_currency, ronda):
+            log(f"   approval card [{fp[:8]}] closed: no longer needed")
         if not esperar_saldo(rail, c.buy_currency, s.saldos.get(c.buy_currency, 0) + c.buy_amount, log, espera):
             log(f"{c.buy_currency} is not in the balance yet: its payments wait for the next run")
             paradas.add(c.buy_currency)
@@ -385,6 +403,7 @@ def motivo_reserva(s: Situacion, ob) -> str:
 
 def pagar(rail: AirwallexRail, libro: Ledger, s: Situacion, ronda: str, paradas: set[str],
           log: Log = print, book: ApprovalBook | None = None) -> None:
+    libro.require_intact()
     # Primero, terminar lo que se quedó a medias en Airwallex (sin crear transferencias nuevas)
     for oid in sorted(s.enviadas):
         entrada = en_camino(libro, f"pay:{ronda}:{oid}")

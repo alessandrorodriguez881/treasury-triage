@@ -21,6 +21,8 @@ from triage_core.approvals import ApprovalBook, ApprovalRequest
 APROBACIONES = DATA / "aprobaciones.json"
 VALIDEZ = "HR_1"
 CADUCADA = "quote expired"  # una tarjeta pendiente cuya cotización venció no es un «no» de una persona
+SOBRA = "no longer needed"   # ni la que se cierra porque el agente pudo convertir solo (p. ej. tras un cobro)
+NO_ES_UNA_PERSONA = (CADUCADA, SOBRA)
 
 APROBADA, ESPERA, RECHAZADA = "APROBADA", "ESPERA", "RECHAZADA"
 CON_RESERVA = "pay_from_reserve"
@@ -85,6 +87,28 @@ def cotizacion_aprobada(rail, book: ApprovalBook, buy_currency: str, buy_amount:
     return None
 
 
+def _de_la_ronda(req: ApprovalRequest, buy_currency: str, ronda: str) -> bool:
+    return (req.action == "fx_conversion" and req.counterparty.endswith(f" {buy_currency}")
+            and req.evidence[1:2] == (f"ronda:{ronda}",))
+
+
+def rechazo_de_una_persona(book: ApprovalBook, buy_currency: str, ronda: str) -> str | None:
+    """La huella de una tarjeta de esta divisa y ronda que una persona rechazó. Su «no» vale para toda la ronda,
+    aunque después cambien las señales y el agente pudiera convertir solo."""
+    for fp, r in book.rejected.items():
+        if _de_la_ronda(r["request"], buy_currency, ronda) and r["approver"] not in NO_ES_UNA_PERSONA:
+            return fp
+    return None
+
+
+def cerrar_sobrantes(book: ApprovalBook, buy_currency: str, ronda: str) -> list[str]:
+    """Cierra las tarjetas pendientes de esta divisa y ronda cuando la conversión ya está hecha sin ellas."""
+    sobrantes = [fp for fp, req in book.pending.items() if _de_la_ronda(req, buy_currency, ronda)]
+    for fp in sobrantes:
+        book.reject(fp, SOBRA)
+    return sobrantes
+
+
 def aprobacion_de_conversion(rail, book: ApprovalBook, sell_currency: str, buy_currency: str,
                              buy_amount: float, motivo: str, ronda: str, senales: tuple[str, ...],
                              ahora: datetime | None = None, log=print) -> tuple[str, str]:
@@ -99,7 +123,7 @@ def aprobacion_de_conversion(rail, book: ApprovalBook, sell_currency: str, buy_c
             if vigente(q, ahora) and round(float(q["sell_amount"]), 2) == round(g["request"].amount, 2):
                 return APROBADA, q["quote_id"]
     for fp, r in book.rejected.items():
-        if misma(r["request"]) and r["approver"] != CADUCADA:
+        if misma(r["request"]) and r["approver"] not in NO_ES_UNA_PERSONA:
             return RECHAZADA, fp
     for fp, req in list(book.pending.items()):
         if misma(req):

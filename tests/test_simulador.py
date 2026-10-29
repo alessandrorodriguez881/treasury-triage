@@ -95,13 +95,31 @@ def test_a_deposit_counts_only_when_it_matches_the_invoice_and_only_once(abierto
     assert sum(e.op_key.startswith("match:") for e in libro.entries) == 1
 
 
+def _grabar(rail, libro, ronda, globex_pagado=False):
+    """Una lectura como la de Claude (la del ensayo), con el plan que habría visto y un resumen suyo."""
+    lectura = leer_correos(rail, libro, ronda, globex_pagado, con_claude=False)
+    lectura.resumen = "Briefing written by Claude"
+    plan = demo.resumen(demo.situacion(rail, libro, ronda, lectura.senales, globex_pagado, lectura.facturas))
+    demo.guardar_grabacion(fecha_ronda(ronda), lectura, plan)
+
+
 def test_a_real_claude_run_is_replayed_and_checked_again_by_code(abierto, tmp_path, monkeypatch):
     monkeypatch.setattr(demo, "GRABACION", tmp_path / "grabacion.json")
-    hoy = fecha_ronda(RONDA)
-    demo.guardar_grabacion(hoy, leer_correos(abierto, None, RONDA, False, con_claude=False))
+    libro = Ledger(tmp_path / "ledger.json")
+    _grabar(abierto, libro, RONDA)
     otra = "r20261105-090000"  # una semana después: los vencimientos de las facturas son otros
-    repetida = leer_correos(abierto, None, otra, False, con_claude=False, repetir=True)
+    repetida = leer_correos(abierto, libro, otra, False, con_claude=False, repetir=True)
     assert repetida.pasos[0].startswith("Replay of a real Claude run")
     assert [s.customer for s in repetida.senales] == ["Globex"]
     assert len(repetida.facturas) == 5
     assert repetida.facturas[0].due_date == (fecha_ronda(otra) + timedelta(days=1)).isoformat()
+    assert repetida.resumen == "Briefing written by Claude"  # same plan as Claude saw: its briefing is shown
+
+
+def test_claudes_recorded_briefing_is_hidden_when_the_numbers_changed(abierto, tmp_path, monkeypatch):
+    """Globex already paid (step 4 before step 2): the briefing would say 75 % while the screen says 93 %."""
+    monkeypatch.setattr(demo, "GRABACION", tmp_path / "grabacion.json")
+    libro = Ledger(tmp_path / "ledger.json")
+    _grabar(abierto, libro, RONDA)
+    repetida = leer_correos(abierto, libro, RONDA, True, con_claude=False, repetir=True)
+    assert repetida.resumen == demo.NO_CUADRA

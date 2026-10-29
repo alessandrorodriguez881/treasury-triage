@@ -4,8 +4,10 @@
 - A new attempt after a confirmed failure gets a new request_id (a replacement).
 - An obligation that already has a successful payment cannot be paid again.
 - Every change is also appended to an audit trail (`<ledger>.audit.jsonl`) where each event carries the hash of
-  the one before. `verify()` recomputes the chain and checks the ledger against it: an edited event, a deleted one
-  or a ledger entry changed by hand shows up.
+  the one before. `verify()` recomputes the chain and checks the ledger against it: an edited event, a deleted one,
+  or a ledger entry changed, removed or added by hand shows up. (Someone who rewrites the whole trail and ledger
+  together is not caught: that needs the trail kept somewhere they cannot write.) If the check fails, the agent
+  moves no money (`require_intact`).
 """
 from __future__ import annotations
 
@@ -22,6 +24,10 @@ FAILED = {"CANCELLED", "FAILED", "REJECTED"}
 
 
 class DuplicatePaymentError(RuntimeError):
+    pass
+
+
+class AuditFailed(RuntimeError):
     pass
 
 
@@ -89,16 +95,33 @@ class Ledger:
             prev = record["hash"]
             last[(record["op_key"], record["attempt"])] = record
         checked = before = 0
+        start = events[0]["updated_at"] if events else None
         for e in self.entries:
-            record = last.get((e.op_key, e.attempt))
+            record = last.pop((e.op_key, e.attempt), None)
             if record is None:
+                if start and e.updated_at >= start:  # newer than the trail but never in it
+                    return AuditCheck(False, len(events), checked, before,
+                                      f"ledger entry {e.op_key} (attempt {e.attempt}) is not in the audit trail: "
+                                      "it was added by hand")
                 before += 1
                 continue
             if any(record[k] != v for k, v in asdict(e).items()):
                 return AuditCheck(False, len(events), checked, before,
                                   f"ledger entry {e.op_key} (attempt {e.attempt}) differs from its audit trail")
             checked += 1
+        if last:
+            op_key, attempt = next(iter(last))
+            return AuditCheck(False, len(events), checked, before,
+                              f"ledger entry {op_key} (attempt {attempt}) is in the audit trail but not in the ledger: "
+                              "it was removed by hand")
         return AuditCheck(True, len(events), checked, before)
+
+    def require_intact(self) -> None:
+        """Call before moving money: with a tampered trail or ledger (say, a payment deleted so it can be paid again)
+        nothing moves until a person looks into it."""
+        check = self.verify()
+        if not check.ok:
+            raise AuditFailed(f"audit trail check failed ({check.problem}): no money moves until a person looks into it")
 
     def attempts(self, op_key: str) -> list[Entry]:
         return [e for e in self.entries if e.op_key == op_key]

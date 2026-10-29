@@ -42,6 +42,26 @@ def _compact(text: str) -> str:
     return re.sub(r"[\s\-]", "", text).upper()
 
 
+def _edge(char: str, ahead: bool) -> str:
+    """What may not touch the first (or last) character of a value: a digit cannot continue a number (nor «,5» or
+    «.5» after it), a letter cannot continue a word."""
+    if char.isdigit():
+        return r"(?![0-9]|[.,][0-9])" if ahead else r"(?<![0-9])(?<![0-9][.,])"
+    if char.isalpha():
+        return r"(?![A-Z])" if ahead else r"(?<![A-Z])"
+    return ""
+
+
+def _written_in(value: str, text: str) -> bool:
+    """`value` is in `text` whole. Spaces and dashes inside it do not count, but «12,000.00» is not in
+    «112,000.00 USD», nor account «50001122» in «500011229»."""
+    chars = _compact(value)
+    if len(chars) < 3:
+        return False
+    pattern = r"[\s\-]*".join(map(re.escape, chars))
+    return re.search(_edge(chars[0], False) + pattern + _edge(chars[-1], True), text, re.IGNORECASE) is not None
+
+
 def _amount(text: str) -> float:
     try:
         return float(text.replace(",", ""))
@@ -61,10 +81,9 @@ def validate_reading(reading: InvoiceReading, documents: dict[str, dict], payabl
         raise InvoiceRejected(f"{reading.document_id} has already been recorded")
     if any(r.obligation_id == reading.obligation_id for r in recorded):
         raise InvoiceRejected(f"{reading.obligation_id} already has an invoice recorded")
-    body = _compact(doc["body"])
     for label, value in (("amount", reading.amount), ("currency", reading.currency),
                          ("due date", reading.due_date), ("bank account", reading.pay_to)):
-        if len(_compact(value)) < 3 or _compact(value) not in body:
+        if not _written_in(value, doc["body"]):
             raise InvoiceRejected(f"the {label} must be copied word for word from the invoice")
     _amount(reading.amount)
 

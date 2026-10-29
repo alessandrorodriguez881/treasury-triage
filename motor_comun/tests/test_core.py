@@ -1,5 +1,6 @@
 """Known-answer tests for the shared engine. Synthetic data only."""
 from datetime import date, timedelta
+import json
 import sys
 from pathlib import Path
 
@@ -10,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from triage_core.approvals import ApprovalBook, ApprovalRequest
 from triage_core.cash_simulation import ExpectedReceipt, cash_bands, simulate
 from triage_core.collections_model import CollectionsModel, PaidInvoice
-from triage_core.ledger import DuplicatePaymentError, Ledger
+from triage_core.ledger import AuditFailed, DuplicatePaymentError, Ledger
 from triage_core.policy import FEE_CUSHION, PAYOUT_FEES, SIGNAL_LIKELIHOOD, TreasuryPolicy
 from triage_core.treasury_decision import (CONVERT_AND_FUND, DEFER, ESCALATE, FUND, Obligation,
                                            diff_plans, plan_treasury)
@@ -234,6 +235,30 @@ def test_the_audit_trail_catches_an_edited_event_and_a_ledger_changed_by_hand(tm
     # deleting the first event breaks the chain as well
     trail.write_text("\n".join(trail.read_text().splitlines()[1:]) + "\n")
     assert "removed or reordered" in Ledger(ledger_file).verify().problem
+
+
+def test_the_audit_trail_catches_a_payment_removed_or_added_by_hand(tmp_path):
+    ledger_file = tmp_path / "ledger.json"
+    led = Ledger(ledger_file)
+    led.update(led.begin("pay:SHIP-1", "transfer", 12_000, "USD", "Freight"), "PAID", "tfr_1")
+    led.update(led.begin("pay:SAAS", "transfer", 2_000, "USD", "SaaS"), "PAID", "tfr_2")
+    assert Ledger(ledger_file).verify().ok
+    original = ledger_file.read_text()
+    # someone deletes the SHIP-1 payment from the ledger, so it can be paid again
+    entries = json.loads(original)
+    ledger_file.write_text(json.dumps(entries[1:]))
+    assert "removed by hand" in Ledger(ledger_file).verify().problem
+    with pytest.raises(AuditFailed):  # ...and the agent moves no money until a person looks
+        Ledger(ledger_file).require_intact()
+    # ...or adds a payment that never went through the agent
+    fake = {**entries[1], "op_key": "pay:FAKE", "request_id": "x", "updated_at": entries[1]["updated_at"]}
+    ledger_file.write_text(json.dumps(entries + [fake]))
+    assert "added by hand" in Ledger(ledger_file).verify().problem
+    # entries older than the trail (a ledger from before it existed) are counted, not failed
+    old = {**fake, "op_key": "pay:OLD", "updated_at": "2026-01-01T00:00:00+00:00"}
+    ledger_file.write_text(json.dumps(entries + [old]))
+    check = Ledger(ledger_file).verify()
+    assert check.ok and check.before_trail == 1 and check.entries_checked == 2
 
 
 def test_the_reserve_pays_the_bill_that_stops_the_business_only_with_a_person():

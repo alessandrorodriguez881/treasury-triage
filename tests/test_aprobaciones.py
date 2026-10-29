@@ -5,7 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from aprobaciones import APROBADA, CADUCADA, ESPERA, RECHAZADA, aprobacion_de_conversion, cotizacion_aprobada
+from aprobaciones import (APROBADA, CADUCADA, ESPERA, RECHAZADA, SOBRA, aprobacion_de_conversion, cerrar_sobrantes,
+                          cotizacion_aprobada, rechazo_de_una_persona)
 from triage_core.approvals import ApprovalBook
 
 NOW = datetime(2026, 10, 28, 10, 0, tzinfo=timezone.utc)
@@ -89,3 +90,21 @@ def test_an_expired_pending_card_is_not_a_no():
     state, new = ask(rail, book, now=NOW + timedelta(hours=2))
     assert state == ESPERA and new != old
     assert book.rejected[old]["approver"] == CADUCADA
+
+
+def test_a_persons_no_holds_for_the_round_even_if_the_signals_change():
+    """The owner rejects the EUR buy; Globex pays and the agent could convert alone: it still does not."""
+    rail, book = FakeRail(), ApprovalBook()
+    _, fp = ask(rail, book)
+    book.reject(fp, "owner")
+    assert rechazo_de_una_persona(book, "EUR", "r1") == fp
+    assert rechazo_de_una_persona(book, "GBP", "r1") is None
+    assert rechazo_de_una_persona(book, "EUR", "r2") is None
+
+
+def test_cards_left_over_after_converting_are_closed_and_are_not_a_no():
+    rail, book = FakeRail(), ApprovalBook()
+    _, fp = ask(rail, book)
+    assert cerrar_sobrantes(book, "EUR", "r1") == [fp] and not book.pending
+    assert book.rejected[fp]["approver"] == SOBRA
+    assert rechazo_de_una_persona(book, "EUR", "r1") is None

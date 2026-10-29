@@ -59,6 +59,12 @@ def dinero(cantidad: float, divisa: str = BASE, decimales: int = 2) -> str:
     return f"{SIMBOLO.get(divisa, '')}{cantidad:,.{decimales}f}"
 
 
+def comprobar_auditoria() -> str:
+    """La orden que comprueba este mismo libro desde la consola (en el modo demo, cada visitante tiene su carpeta)."""
+    carpeta = Path(os.path.relpath(DATA, Path(__file__).parent)).as_posix() if SIMULADO else ""
+    return f"python verificar_auditoria.py {carpeta}".rstrip()
+
+
 def md(texto: str) -> str:
     """En Markdown de Streamlit, dos «$» seguidos se leen como una fórmula: se escapan."""
     return texto.replace("$", "\\$")
@@ -467,7 +473,7 @@ with auditoria:
         st.success(f"Audit trail verified: {chequeo.events} events, each chained to the one before by its hash, "
                    "and the ledger matches them"
                    + (f" ({chequeo.before_trail} older entries predate the trail)" if chequeo.before_trail else "")
-                   + ". Check it yourself: python verificar_auditoria.py", icon=":material/verified_user:")
+                   + f". Check it yourself: {comprobar_auditoria()}", icon=":material/verified_user:")
     else:
         st.error(f"Audit trail check failed: {chequeo.problem}", icon=":material/gpp_bad:")
     movimientos = [{"Operation": e.op_key.split(":", 1)[0], "Key": e.op_key, "Attempt": e.attempt,

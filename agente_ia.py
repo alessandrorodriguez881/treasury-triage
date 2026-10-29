@@ -74,6 +74,7 @@ class Bandeja:
         self.dominios, self.en_ficha, self.recalcular = dominios, en_ficha, recalcular
         self.senales: list[Signal] = []
         self.facturas: list[InvoiceReading] = []
+        self.plan: dict | None = None  # el último plan que vio Claude (sobre él escribe su resumen)
         self.registro: list[str] = []  # lo que ha hecho el agente, para enseñarlo en la demo
 
     def read_supplier_invoices(self) -> str:
@@ -144,9 +145,9 @@ class Bandeja:
         Returns JSON with the forecast confidence, how much the agent may convert on its own, each decision
         with its reason, the conversions that need the owner's approval, and the result of each invoice check.
         """
-        resumen = self.recalcular(list(self.senales), list(self.facturas))
-        self.registro.append(f"recompute_plan() -> forecast confidence {resumen['confidence']}")
-        return json.dumps(resumen, ensure_ascii=False)
+        self.plan = self.recalcular(list(self.senales), list(self.facturas))
+        self.registro.append(f"recompute_plan() -> forecast confidence {self.plan['confidence']}")
+        return json.dumps(self.plan, ensure_ascii=False)
 
 
 class SinClave(RuntimeError):

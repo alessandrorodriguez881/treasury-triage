@@ -40,6 +40,18 @@ def test_a_reading_counts_only_if_every_value_is_on_the_invoice():
             validate_reading(wrong, DOCS, PAYABLES, [])
 
 
+def test_part_of_a_number_is_not_the_number_on_the_invoice():
+    docs = {"inv-7": {"body": "Total due: 112,000.00 USD, due 2026-10-29, to account 500011229"}}
+    payables = {"BIG": Obligation("BIG", "Big Supplier", "USD", 12_000, 2)}
+    validate_reading(InvoiceReading("inv-7", "BIG", "112,000.00", "USD", "2026-10-29", "500011229"), docs, payables, [])
+    for wrong in (InvoiceReading("inv-7", "BIG", "12,000.00", "USD", "2026-10-29", "500011229"),    # a piece of it
+                  InvoiceReading("inv-7", "BIG", "112,000", "USD", "2026-10-29", "500011229"),      # cut short
+                  InvoiceReading("inv-7", "BIG", "112,000.00", "USD", "2026-10-29", "50001122"),    # account cut
+                  InvoiceReading("inv-7", "BIG", "112,000.00", "US", "2026-10-29", "500011229")):   # too short
+        with pytest.raises(InvoiceRejected, match="word for word"):
+            validate_reading(wrong, docs, payables, [])
+
+
 def test_one_reading_per_invoice_and_per_bill():
     with pytest.raises(InvoiceRejected, match="already"):
         validate_reading(GOOD, DOCS, PAYABLES, [GOOD])
