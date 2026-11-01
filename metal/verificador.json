@@ -1,0 +1,6 @@
+{
+  "service": "Payee Check (demo service run locally)",
+  "pay_to": "0xA0f474B217C8F43bB03F4792c3149aBF1304e665",
+  "price": "0.25",
+  "port": 4022
+}

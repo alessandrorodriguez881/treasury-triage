@@ -19,7 +19,7 @@ Press the sidebar buttons in order and check what you should see:
 
 | Step | What you should see |
 |---|---|
-| **2 · Claude reads the inbox** | Four invoices match; Q. Consulting's asks for an account on no supplier file. Globex asks for more time; the fake "CFO" email is ignored. Confidence **75%, 6 points below usual**, so the agent's FX limit drops from $10,000 to $2,500 |
+| **2 · Claude reads the inbox** | Four invoices match; Q. Consulting's asks for an account on no supplier file, and its card shows a **payee check paid on Metal: no match** (see "On Metal" below). Globex asks for more time; the fake "CFO" email is ignored. Confidence **75%, 6 points below usual**, so the agent's FX limit drops from $10,000 to $2,500 |
 | **3 · Execute the plan** | Freight paid (PAID). Both conversions now need a person: two approval cards with a locked quote. SaaS deferred, new supplier escalated |
 | **Approve** both cards | They show as approved by the owner |
 | **4 · Globex pays $18,000** | The agent finds the deposit in Airwallex and matches it to invoice GX-2207. Confidence 75% → 93%. *Only* the SaaS decision changes: defer → pay |
@@ -44,6 +44,27 @@ Press the sidebar buttons in order and check what you should see:
 7. **Reconciles, then re-plans.** It does not take a payment for granted: it reads the deposits in Airwallex (`/api/v1/deposits`) and matches each one to an invoice it expects, by amount, currency and the customer's name or invoice number. Each deposit counts once. Only then does it reopen the decisions the new cash changes, and it shows the diff.
 8. **Executes and audits.** It books the FX conversions, creates the beneficiaries and sends the supplier transfers (SCHEDULED → SENT → PAID in the sandbox), then confirms the reserve. Every operation goes to a ledger with its `request_id`, so nothing is paid or converted twice. Every change is also appended to an audit trail where each event carries the hash of the one before; `python verificar_auditoria.py` checks the chain and the ledger against it.
 9. **Shows its forecast.** The screen draws the cash path of the next 72 hours with the plan: the band that holds 90% of the 5,000 simulated paths, against the reserve floor. When Globex's email arrives, the band drops towards the floor.
+10. **Checks an unknown account on Metal before a person decides.** See the next section.
+
+## On Metal: a payee check before a person decides
+
+Q. Consulting's invoice asks to be paid into an account that is on no supplier file. Before the owner decides, the agent buys a **payee check**, like the EU's Verification of Payee: is account `LT12 1000 0111 0100 1000` registered to Q. Consulting? It pays **0.25 \*USDZ over x402 on Metal testnet** with Metal's `metal-agent` CLI. The answer goes on that bill's card as evidence: **no match**, with a link to the payment on the Metal explorer.
+
+- **What it changes:** nothing in the plan. The bill goes to a person either way (new payee, rule R7); the check only gives that person evidence. Balances, decisions, the reserve, approvals and the audit trail are the same with and without it. A test checks that the plan, its fingerprint and Claude's briefing do not change.
+- **Who is paid:** "Payee Check", a **demo service we run locally** (`metal/verificador_x402.mjs`, built on `@metalntwx/metal-pay`). Its registry is synthetic (`metal/registro_demo.json`): the four suppliers' accounts are theirs, and the account in Q. Consulting's invoice belongs to someone else. It answers match, close match (with the name on record), no match, or not possible.
+- **Never pays twice:** one key per round and invoice, in a ledger of its own with the same hash-chained audit trail (`data/metal/libro_metal.json`), so the Airwallex trail and its numbers stay as they were. The agent pays only an exact \*USDZ offer, to the service's address on file, for exactly 0.25. The service charges each check once; asking again returns the stored answer for free. If the answer is lost after paying, the agent finds the payment at Metal's facilitator by its nonce instead of paying again.
+- **Never stops the demo:** if Metal or the service does not answer, the card says "Payee check on Metal unavailable", and the bill still goes to a person.
+- **Proof it ran:** [the real payment on the Metal explorer](https://testnet.metalntwx.com/tx/0x8d839adc481acfe18a58a3a21d2eff6bb798b2d8dad4c353caa684a57f708f98) (0.25 \*USDZ from the agent `0x7393…580f` to the service `0xA0f4…e665`, 1 Nov 2026, finalized). Without Metal set up, the demo **replays that recorded check** (`metal/grabacion_metal.json`) and says so on the card ("replay of a real Metal testnet payment"). `TT_GRABAR_METAL=1` records a new one.
+- **Run it for real** (Node.js 22 or later):
+
+  ```bash
+  python metal/preparar.py --clave       # installs metal-agent and the service outside the project folder,
+                                         # creates a testnet key in data/metal/ and funds it from Metal's faucet
+  TT_METAL=real python -m streamlit run panel.py
+  ```
+
+  With the real Airwallex sandbox it pays for real by default; `TT_METAL=replay` or `off` changes that.
+- **Ready for spending limits on chain:** `rail_metal.py` can also pay under a Metal **mandate** (`metal-agent pay --mandate`), so the owner's limits (only this service, at most 1 \*USDZ per payment, 5 in total) are enforced by the chain itself, not only by our code.
 
 ## What the model does and what the code does
 
@@ -127,6 +148,7 @@ Full write-up: `RESULTADOS_SIMULACION.md` (Spanish).
 - **Sandbox simulations** (behind the same wrapper, `rail_airwallex.py`):
   - the customer's deposit (`simulation/deposit/create`);
   - transfer status changes (`simulation/transfers/{id}/transition`).
+- **Real Metal testnet payment:** the payee check, 0.25 \*USDZ over x402 (`rail_metal.py`, through the `metal-agent` CLI and Metal's facilitator). The service it pays is a demo we run locally, with a synthetic registry.
 - **Synthetic:** the business, its customers' payment histories, the supplier invoices and the emails.
 - **Demo mode (no keys):** `simulador_airwallex.py` plays the sandbox under the same wrapper, and Claude's step replays a recorded real run (recorded on the simulator, from the demo's starting balances). Claude's briefing is shown only if the plan on screen is the one Claude saw; if not (say, a customer already paid), the screen says so instead. `TT_GRABAR=1` with a Claude key records a new run. The screen says so in a banner. It keeps its own ledger (`data_simulada/`), apart from the real sandbox's.
 
@@ -149,7 +171,7 @@ In the sidebar:
 
 The same steps exist on the command line: `reiniciar_demo.py`, `ejecutar_plan.py --leer-correo`, `aprobar.py`, `ejecutar_plan.py --deposito-globex`.
 
-Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 98 tests). The engine lives in `motor_comun/`.
+Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 137 tests). The engine lives in `motor_comun/`.
 
 ## Things the sandbox taught us
 
@@ -159,6 +181,13 @@ Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app an
 - A converted or deposited amount can take a few seconds to show in the balance. The agent waits until it does before paying with it or re-planning.
 - A reused `request_id` on a conversion is rejected instead of returning the original. The wrapper looks the operation up by `request_id` before treating it as failed.
 - The transfer simulation can answer HTTP 500 and leave a transfer in SCHEDULED. A sent transfer counts as committed money, and the next run finishes it.
+
+## Things Metal testnet taught us
+
+- On 30 Oct, `npx @metalntwx/metal-agent@0.3.3` installed `@x402/fetch` 2.29.0. With that version, `pay` settled the payment and then failed with "payment in doubt". `metal/package.json` pins `@x402/*` to 2.28.0.
+- x402 charges per request. A service that is paid once per item (an invoice, a check) has to remember what is paid, or a retry pays again.
+- If the answer to a payment is lost, Metal's facilitator still lists the payment (`/settlements`, by payee). Its id ends in the payment's nonce, so the agent finds it there instead of paying twice.
+- On Windows, Node can exit with an error code after a payment that went through, so the wrapper reads what the CLI printed, not its exit code.
 
 ## Use of AI
 

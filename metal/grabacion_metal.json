@@ -1,0 +1,16 @@
+{
+  "recorded_on": "2026-11-01",
+  "what": "A real payee check paid on Metal testnet, replayed when the demo runs without Metal",
+  "payee": "Q. Consulting",
+  "account": "LT121000011101001000",
+  "result": "no_match",
+  "name_on_record": null,
+  "checked_at": "2026-11-01T19:41:02.627Z",
+  "price": "0.25",
+  "transaction": "0x8d839adc481acfe18a58a3a21d2eff6bb798b2d8dad4c353caa684a57f708f98",
+  "explorer": "https://testnet.metalntwx.com/tx/0x8d839adc481acfe18a58a3a21d2eff6bb798b2d8dad4c353caa684a57f708f98",
+  "payer": "0x7393A826Fac730EaBA3cc58a8407236D9De4580f",
+  "service": "Payee Check (demo service run locally)",
+  "pay_to": "0xA0f474B217C8F43bB03F4792c3149aBF1304e665",
+  "network": "Metal testnet (eip155:63825)"
+}

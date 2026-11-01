@@ -15,6 +15,7 @@ from typing import Callable
 
 from aprobaciones import (APROBADA, RECHAZADA, aprobacion_de_conversion, aprobacion_de_reserva, cerrar_sobrantes,
                           cotizacion_aprobada, rechazo_de_una_persona)
+import comprobacion_metal
 from escenario import (BASE, COBROS, DIVISAS, EN_FICHA, MODEL, OBLIGATIONS, PAGO_GLOBEX, PROVEEDORES, SENAL_GLOBEX,
                        facturas_ensayo, facturas_proveedor, fecha_ronda, receipts)
 from preparar_sandbox import divisas
@@ -201,6 +202,39 @@ def leer_correos(rail: AirwallexRail, libro: Ledger, ronda: str, globex_pagado: 
     if GRABAR:
         guardar_grabacion(hoy, lectura, bandeja.plan)
     return lectura
+
+
+def comprobar_beneficiarios(ronda: str, facturas, log: Log = print, carpeta=None) -> list[dict]:
+    """Paso 2, después de leer las facturas: cada factura que pide pagar a una cuenta que no está en la ficha de su
+    proveedor (en la demo, la de Q. Consulting) se comprueba en Metal, como la «Verification of Payee» de la UE.
+    El agente paga 0,25 *USDZ por x402 y el resultado queda como prueba para la persona que decide
+    (`comprobacion_metal.py`). No cambia ninguna decisión ni ninguna cifra del plan.
+
+    Nunca para la demo: si Metal, el servicio local o la red fallan, queda una nota «unavailable» y se sigue.
+    Devuelve las comprobaciones de esta ronda (también se guardan por ronda en `carpeta`, por defecto la de datos)."""
+    m = comprobacion_metal
+    modo = m.modo_metal()
+    if modo == "off":
+        return []
+    hechas = m.comprobaciones_de(ronda, carpeta)
+    resultados = []
+    for f, payee in m.por_comprobar(facturas):
+        r = hechas.get(f.obligation_id)
+        if r is None or r.get("mode") not in ("real", "replay"):
+            try:
+                r = m.comprobar_real(ronda, f, payee) if modo == "real" else m.comprobar_grabada(f, payee)
+                if r["mode"] == "real" and m.GRABAR_METAL:
+                    m.grabar(r)
+            except Exception as e:  # Metal, el servicio local o la red: una nota, nunca un error en pantalla
+                motivo = str(e) if isinstance(e, m.MetalError) else type(e).__name__
+                r = {**m.resultado_base(f, payee, "unavailable"), "note": motivo[:160]}
+        resultados.append(r)
+        extra = (f" ({m.REPLAY} of {r['recorded_on']})" if r["mode"] == "replay" else
+                 f" · transaction {r['transaction']}" if r["mode"] == "real" and r.get("transaction") else "")
+        log(f"{payee}'s invoice ({f.document_id}): {m.texto(r)}{extra}")
+    if resultados:
+        m.guardar_comprobaciones(ronda, resultados, carpeta)
+    return resultados
 
 
 def disponible(rail: AirwallexRail, divisa: str) -> float:

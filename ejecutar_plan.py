@@ -9,7 +9,8 @@
 Con --leer-correo, antes de decidir, Claude lee las facturas de los proveedores y la bandeja (`agente_ia.py`):
 registra lo que dice cada factura y cada correo de cliente (el código lo comprueba todo; una factura que no
 cuadra con la lista de pagos o con la ficha del proveedor pasa a una persona) y explica el plan. Lo aceptado
-se guarda para toda la ronda. --correo-globex hace lo mismo sin Claude, para ensayar sin clave.
+se guarda para toda la ronda. --correo-globex hace lo mismo sin Claude, para ensayar sin clave. Después, la
+cuenta de una factura que no está en ninguna ficha se comprueba en Metal (`demo.comprobar_beneficiarios`).
 
 Con --deposito-globex, antes de ejecutar llega el pago de Globex (depósito simulado de 18.000 $): el motor
 vuelve a calcular el plan y enseña solo las decisiones que cambian.
@@ -25,7 +26,8 @@ import argparse
 import sys
 
 from aprobaciones import APROBACIONES
-from demo import Situacion, conciliar, convertir, deposito_globex, esperar_conciliacion, leer_correos, pagar, situacion
+from demo import (Situacion, comprobar_beneficiarios, conciliar, convertir, deposito_globex, esperar_conciliacion,
+                  leer_correos, pagar, situacion)
 from escenario import (BASE, DATA, DIVISAS, MODEL, facturas_de, guardar_facturas, guardar_senales, ronda_actual,
                        senales_de)
 from modo import SIMULADO, conectar
@@ -85,6 +87,7 @@ def main() -> int:
             senales, facturas = lectura.senales, lectura.facturas
             guardar_facturas(args.ronda, facturas)
             guardar_senales(args.ronda, senales)
+            comprobar_beneficiarios(args.ronda, facturas, lambda m: print(f"   {m}"))  # Metal: prueba, nunca para
     senales = senales or []
     s = situacion(rail, libro, args.ronda, senales, globex_pagado, facturas)
     if args.deposito_globex and not globex_pagado and not args.solo_plan:

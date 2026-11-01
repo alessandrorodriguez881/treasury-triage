@@ -18,8 +18,9 @@ import streamlit as st
 import ajustar_saldos_demo
 import preparar_sandbox
 from aprobaciones import APROBACIONES, CON_RESERVA, cotizacion, titulo
-from demo import (ENV, conciliar, convertir, deposito_globex, esperar_conciliacion, hay_grabacion, huella,
-                  leer_correos, pagar, situacion, ya_conciliados, ya_hecho)
+from comprobacion_metal import comprobaciones_de, precalentar, texto_tarjeta
+from demo import (ENV, comprobar_beneficiarios, conciliar, convertir, deposito_globex, esperar_conciliacion,
+                  hay_grabacion, huella, leer_correos, pagar, situacion, ya_conciliados, ya_hecho)
 from demo import resumen as plan_para_claude
 from escenario import (BANDEJA, BASE, COBROS, CONCEPTOS, DATA, MODEL, PAGO_GLOBEX, facturas_de, facturas_proveedor,
                        fecha_ronda, guardar_facturas, guardar_senales, nueva_ronda, receipts, ronda_actual, senales_de)
@@ -86,6 +87,9 @@ libro = Ledger(DATA / "ledger.json")
 book = ApprovalBook.load(APROBACIONES)
 senales = senales_de(ronda)
 facturas = facturas_de(ronda)
+comprobaciones = comprobaciones_de(ronda)  # la comprobación en Metal de las cuentas que no están en ninguna ficha
+if senales is None:
+    precalentar()  # con Metal de verdad, el servicio de comprobación arranca ya, en segundo plano
 try:  # el agente mira en Airwallex si ha llegado algún cobro y lo concilia con su factura
     conciliados = conciliar(rail, libro, ronda)
 except AirwallexError:
@@ -165,6 +169,7 @@ def leer(log, con_claude: bool) -> None:
     st.session_state.lectura = {"pasos": lectura.pasos, "resumen": lectura.resumen, "con_claude": con_claude,
                                 "plan": huella(lectura.plan)}
     log(f"Inbox read: {len(lectura.facturas)} invoice(s) and {len(lectura.senales)} signal(s) accepted")
+    comprobar_beneficiarios(ronda, lectura.facturas, log)  # Metal: prueba para quien decide; nunca para la demo
 
 
 def ejecutar(log) -> None:
@@ -386,6 +391,8 @@ with hoy:
                                    + "; ".join(s.comprobadas[o.id]) + "]"))
                 else:
                     st.caption(":material/fact_check: Invoice matches the payables list and the bank details on file")
+            if o.id in comprobaciones:
+                st.caption(texto_tarjeta(comprobaciones[o.id]))
             for fp, r in pendientes:
                 if de_este_pago(o, r, primera):
                     mostradas.add(fp)

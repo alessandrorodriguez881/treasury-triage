@@ -1,0 +1,10 @@
+{
+  "about": "Synthetic registry of the local Payee Check demo service: account -> registered holder. Not real data. The four demo suppliers' accounts are theirs; the account in Q. Consulting's invoice is registered to someone else.",
+  "accounts": {
+    "50001122": "FreightCo Logistics Inc",
+    "DE89 3704 0044 0532 0130 00": "Bergmann GmbH",
+    "50001123": "ToolStack Inc",
+    "12345678": "Hart and Co Ltd",
+    "LT12 1000 0111 0100 1000": "Nordbaltic Trade Partners UAB"
+  }
+}
