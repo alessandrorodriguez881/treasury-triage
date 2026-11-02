@@ -502,6 +502,24 @@ with auditoria:
     st.caption("One request_id per operation; a retry reuses it, a new attempt after a confirmed failure gets a new "
                "one, and a bill that is already paid cannot be paid again.")
 
+    # Lo pagado en Metal va en su propio libro (data/metal/): así no se mezcla con las cifras de Airwallex de arriba
+    st.subheader("Paid on Metal in this round")
+    en_metal = [{"Bill": oid, "Paid for": f"Payee check, {r.get('payee')}",
+                 "Amount": f"{r.get('price')} *USDZ", "Result": str(r.get("result", "")).replace("_", " "),
+                 "Transaction": r.get("explorer") or "",
+                 "Run": "replay of a real testnet payment" if r.get("mode") == "replay" else "live on testnet",
+                 "Paid by": (lambda p: f"agent wallet {p[:6]}…{p[-4:]}" if p else "")(r.get("payer") or "")}
+                for oid, r in comprobaciones.items() if r.get("mode") in ("real", "replay") and r.get("transaction")]
+    if en_metal:
+        st.dataframe(en_metal, hide_index=True, alt="Payments on Metal testnet in this demo round",
+                     column_config={"Transaction": st.column_config.LinkColumn(display_text="view on Metal explorer")})
+    else:
+        st.caption("Nothing paid on Metal in this round yet. Step 2 pays a payee check when a bill asks to be paid "
+                   "into an account that is on no supplier file.")
+    st.caption("Digital dollars (*USDZ) on Metal testnet, paid over x402 to a payee-check service (a demo service "
+               "that runs locally). Kept in their own ledger with the same pay-once rule, so the Airwallex figures "
+               "above are not mixed with them.")
+
 with reglas:
     st.markdown("Among all combinations of bills it could pay today, the agent takes the cheapest one whose chance "
                 "of breaking the reserve stays under the limit. Amounts, limits and approvals live in code; Claude "
