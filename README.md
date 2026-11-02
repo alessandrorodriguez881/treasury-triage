@@ -181,6 +181,7 @@ Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app an
 - A converted or deposited amount can take a few seconds to show in the balance. The agent waits until it does before paying with it or re-planning.
 - A reused `request_id` on a conversion is rejected instead of returning the original. The wrapper looks the operation up by `request_id` before treating it as failed.
 - The transfer simulation can answer HTTP 500 and leave a transfer in SCHEDULED. A sent transfer counts as committed money, and the next run finishes it.
+- Airwallex's own account check (`POST /api/v1/beneficiaries/verify_account`, Verification / Confirmation of Payee) gives simulated answers in the sandbox. On 2 Nov it said VERIFIED / NOT_MATCHED for Q. Consulting's account, but also for Bergmann's account on file, and INVALID for Hart & Co's. So the demo makes no decision on it. In production it would be the first check before a new payee, with the Metal check as a second, independent source. Either way, a new payee still goes to a person.
 
 ## Things Metal testnet taught us
 
