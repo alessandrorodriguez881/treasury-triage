@@ -507,7 +507,8 @@ with auditoria:
     en_metal = [{"Bill": oid, "Paid for": f"Payee check, {r.get('payee')}",
                  "Amount": f"{r.get('price')} *USDZ", "Result": str(r.get("result", "")).replace("_", " "),
                  "Transaction": r.get("explorer") or "",
-                 "Run": "replay of a real testnet payment" if r.get("mode") == "replay" else "live on testnet",
+                 "Run": (f"replay of a real testnet payment ({r.get('recorded_on', '')})".replace(" ()", "")
+                         if r.get("mode") == "replay" else "live on testnet"),
                  "Paid by": (lambda p: f"agent wallet {p[:6]}…{p[-4:]}" if p else "")(r.get("payer") or "")}
                 for oid, r in comprobaciones.items() if r.get("mode") in ("real", "replay") and r.get("transaction")]
     if en_metal:
