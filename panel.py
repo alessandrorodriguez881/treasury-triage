@@ -72,7 +72,7 @@ def md(texto: str) -> str:
     return texto.replace("$", "\\$")
 
 
-for clave, valor in (("log", []), ("lectura", None), ("cambios", None), ("error", None)):
+for clave, valor in (("log", []), ("lectura", None), ("leido", None), ("cambios", None), ("error", None)):
     st.session_state.setdefault(clave, valor)
 
 rail = get_rail()
@@ -158,16 +158,25 @@ def reiniciar(log) -> None:
         nueva = nueva_ronda()
         preparar_sandbox.main()
         ajustar_saldos_demo.main()
-    st.session_state.lectura = st.session_state.cambios = None
+    st.session_state.lectura = st.session_state.leido = st.session_state.cambios = None
     log(f"Sandbox back to the opening balances. New round {nueva}")
 
 
 def leer(log, con_claude: bool) -> None:
+    antes = situacion(rail, libro, ronda, [], globex_pagado, ())
     lectura = leer_correos(rail, libro, ronda, globex_pagado, con_claude, repetir=True)
     guardar_facturas(ronda, lectura.facturas)
     guardar_senales(ronda, lectura.senales)
+    despues = situacion(rail, libro, ronda, lectura.senales, globex_pagado, lectura.facturas)
     st.session_state.lectura = {"pasos": lectura.pasos, "resumen": lectura.resumen, "con_claude": con_claude,
                                 "plan": huella(lectura.plan)}
+    # lo que cambió la lectura, para el aviso de arriba (como el del cobro de Globex)
+    st.session_state.leido = {"antes": antes.plan.confidence, "despues": despues.plan.confidence,
+                              "fx_antes": antes.plan.fx_limit, "fx_despues": despues.plan.fx_limit,
+                              "senales": [(sig.customer, sig.signal) for sig in lectura.senales],
+                              "facturas": len(lectura.facturas),
+                              "no_cuadran": [o.id for o in despues.obligaciones if despues.comprobadas.get(o.id)],
+                              "por_aprobar": sum(c.needs_approval for c in despues.plan.conversions)}
     log(f"Inbox read: {len(lectura.facturas)} invoice(s) and {len(lectura.senales)} signal(s) accepted")
     comprobar_beneficiarios(ronda, lectura.facturas, log)  # Metal: prueba para quien decide; nunca para la demo
 
@@ -205,6 +214,7 @@ with st.sidebar:
     st.header("Run the demo")
     st.caption(f"Round `{ronda}` · " + ("simulated Airwallex sandbox · no keys" if SIMULADO
                                          else "Airwallex sandbox · no real money"))
+    siguiente = st.empty()  # el paso que toca ahora: se escribe cuando ya se sabe en qué punto va la ronda
     if st.button("1 · Reset sandbox", icon=":material/restart_alt:", width="stretch"):
         pulsado = ("Resetting the sandbox", reiniciar)
     con_claude = claude_disponible()
@@ -230,9 +240,9 @@ st.title("Treasury Triage")
 st.caption("A treasury agent that knows how much to trust its own cash forecast · "
            + ("demo mode" if SIMULADO else "live on the Airwallex sandbox"))
 if SIMULADO:
-    st.info("No Airwallex keys here, so a built-in simulator answers the same Airwallex API calls, with the rates "
-            "and fees measured on the real sandbox. With sandbox keys in `.env`, the same buttons move money in the "
-            "Airwallex sandbox.", icon=":material/science:")
+    st.caption(":material/science: **Demo mode, no keys:** a built-in simulator answers the same Airwallex API calls, "
+               "with the rates and fees measured on the real sandbox. With sandbox keys in `.env`, the same buttons "
+               "move money in the Airwallex sandbox.")
 if pulsado:  # el paso corre aquí, a la vista: cada mensaje aparece mientras pasa
     nombre, fn = pulsado
     st.session_state.error = None
@@ -270,6 +280,27 @@ cols[4].metric("Agent FX limit", dinero(s.plan.fx_limit, decimales=0), border=Tr
 cols[5].metric("Above reserve", dinero(caja - POLICY.reserve_floor, decimales=0), border=True, height="stretch",
                help=f"All balances in USD minus the {dinero(POLICY.reserve_floor, decimales=0)} reserve floor")
 
+QUE_DICE = {"confirms_payment": "{} confirmed its payment", "asks_for_more_time": "{} will pay late",
+            "disputes_invoice": "{} disputes its invoice"}
+if st.session_state.leido and not st.session_state.cambios:  # lo que cambió al leer la bandeja, hasta que paga Globex
+    l = st.session_state.leido
+    quien = {o.id: o.payee for o in s.obligaciones}
+    dichos = [QUE_DICE.get(tipo, "{}: " + tipo).format(cliente) for cliente, tipo in l["senales"]]
+    texto = (f"{', '.join(dichos[:-1]) + ' and ' + dichos[-1] if len(dichos) > 1 else ''.join(dichos) or 'Nothing new'}"
+             f", so confidence goes {l['antes']:.0%} → {l['despues']:.0%} (usual {usual:.0%}).")
+    if l["fx_despues"] != l["fx_antes"]:
+        texto += (f" The agent may now convert only {dinero(l['fx_despues'], decimales=0)} on its own (it was "
+                  f"{dinero(l['fx_antes'], decimales=0)})"
+                  + (f": {l['por_aprobar']} conversion{'s' if l['por_aprobar'] != 1 else ''} will need your approval."
+                     if l["por_aprobar"] else "."))
+    for oid in l["no_cuadran"]:
+        texto += f" **{oid}** ({quien.get(oid, '')}): the invoice does not match, so a person decides."
+    ignorados = len(BANDEJA) - len(l["senales"])
+    if ignorados > 0:
+        texto += (f" {ignorados} email{'s' if ignorados != 1 else ''} changed nothing: an email can only change a "
+                  "customer's odds, never authorise a payment.")
+    st.info(md(texto), title=f"Claude read {len(BANDEJA)} emails and {l['facturas']} supplier invoices",
+            icon=":material/mark_email_read:")
 if st.session_state.cambios:
     cambios = st.session_state.cambios
     lineas = "; ".join(f"**{i}** {a.lower()} → {b.lower()}" for i, a, b in cambios["lineas"]) or "nothing"
@@ -281,6 +312,16 @@ if s.pagadas and globex_pagado and all(o.id in s.pagadas for o in s.obligaciones
     st.success(md(f"Reserve intact: {dinero(caja - POLICY.reserve_floor, decimales=0)} above the "
                   f"{dinero(POLICY.reserve_floor, decimales=0)} floor. The new supplier still waits for a person."),
                title="All bills the agent may pay are paid", icon=":material/verified:")
+
+por_decidir = [fp for fp, r in book.pending.items() if de_ronda(r)]
+pagables = [o for o in s.obligaciones if not o.policy_exception]
+paso = (f"2 · {lee}" if senales is None else
+        "approve or reject the cards on the Today tab" if por_decidir else
+        "3 · Execute the plan" if not s.pagadas else
+        f"4 · Globex pays {dinero(PAGO_GLOBEX, decimales=0)}" if not globex_pagado else
+        "3 · Execute the plan again" if any(o.id not in s.pagadas for o in pagables) else None)
+siguiente.markdown(f":material/arrow_forward: **Next:** {md(paso)}" if paso else
+                   ":material/check_circle: **Done.** Step 1 starts the demo again.")
 
 hoy, pruebas, auditoria, reglas = st.tabs(["Today", "Evidence: 1,000 weeks", "Audit trail", "How it decides"])
 
@@ -343,6 +384,21 @@ with hoy:
     for o in s.obligaciones:
         primera.setdefault(o.currency, o.id)
     mostradas: set[str] = set()
+
+    # El plan de un vistazo: cuántos pagos van con cada decisión, lo que espera a una persona y el riesgo
+    with st.container(horizontal=True, vertical_alignment="center"):
+        st.markdown("**Today's plan**")
+        if s.pagadas:
+            st.badge(f"Paid · {len(s.pagadas)}", icon=":material/verified:", color="green")
+        for accion in (FUND, CONVERT_AND_FUND, DEFER, ESCALATE):
+            n = sum(d.action == accion for d in s.plan.decisions)
+            if n:
+                color, icono = ESTILO[accion]
+                st.badge(f"{ACCION[accion]} · {n}", icon=icono, color=color)
+        if pendientes:
+            st.badge(f"Waiting for your approval · {len(pendientes)}", icon=":material/approval:", color="orange")
+        st.caption(f"Chance of breaking the reserve in the next 72 h: {s.plan.risk.p_breach:.1%} "
+                   f"(the policy allows {POLICY.max_breach_prob:.0%})")
 
     # Por vencimiento, en filas de tres: las tarjetas de una fila miden lo mismo y la gráfica cierra la última
     por_vencer = sorted(s.obligaciones, key=lambda o: (o.due_day, s.obligaciones.index(o)))
