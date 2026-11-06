@@ -30,7 +30,7 @@ Press the sidebar buttons in order and check what you should see:
 | **4 · Globex pays $18,000** | The agent finds the deposit in Airwallex and matches it to invoice GX-2207. Confidence 75% → 93%. *Only* the SaaS decision changes: defer → pay |
 | **3 · Execute the plan** again | Conversions at the approved quotes, every bill the agent may pay is PAID, **reserve intact** (about $10,300 above the $15,000 floor). Q. Consulting still waits for a person |
 
-**Proof it ran on the real sandbox:** [`evidencia/recibo_r20261029-011728.md`](evidencia/recibo_r20261029-011728.md) lists every conversion, transfer and deposit of a real demo round with its Airwallex id, re-queried from Airwallex (all PAID or SETTLED), Globex's deposit matched to its invoice, and the audit trail verified.
+**Proof it ran on the real sandbox:** [`evidencia/recibo_r20261029-011728.md`](evidencia/recibo_r20261029-011728.md) (29 Oct) and [`evidencia/recibo_r20261106-204646.md`](evidencia/recibo_r20261106-204646.md) (6 Nov, the round recorded for the demo video) list every conversion, transfer and deposit of a real demo round with its Airwallex id, re-queried from Airwallex (all PAID or SETTLED), Globex's deposit matched to its invoice, and the audit trail verified.
 
 ## What it does
 
