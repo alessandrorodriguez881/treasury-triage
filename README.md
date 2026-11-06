@@ -121,9 +121,11 @@ Customers' true on-time odds were hidden from all of them, and the hypotheses we
 
 **The agent learns from every payment.** Each payment joins its customer's history four weeks later, once even the late ones have arrived. Every 20 weeks a self-check compares what the agent believed with what happened, and corrects the base forecast and how much an email is worth. It is a penalized logistic regression (`triage_core/collections_calibration.py`), shared with Receivables Copilot.
 
+![Weeks the business stopped, weeks below the reserve and cost per week: Treasury Triage and the same three simpler agents in every column](resultados/resumen_1000_semanas.png)
+
 On the latest two fresh seeds (2031 and 2032):
 - **The business never stopped.** The same engine that never touches the reserve stopped it in 12-13% of weeks.
-- **About $940 a week cheaper** than the no-forecast agent, and **$530-$570 cheaper** than never touching the reserve.
+- **About $940 a week cheaper** than the no-forecast agent, and **$530-$570 cheaper** than never touching the reserve. Paying in order costs less ($105-$112), but only because going below the reserve has no price in this cost.
 - **Cash never went below zero.** The reserve was used in 5-7% of weeks, always with a person's approval, against 14% when paying in order. The agent knows that risk: it predicted 5.0-6.2% and it happened in 5.4-6.6% of weeks.
 - **The forecast stays within 6 points** of what really happened in every bucket (on the seeds that tested learning: it was 11 points off without learning, and it closes 56-80% of the gap to a forecast that knew the hidden truth).
 - With "worse than usual" approvals, it **asks a person for FX in 1 week in 4 or 5**, and those weeks really are riskier: 63-74% have a late payment, against 47-48% of the others.

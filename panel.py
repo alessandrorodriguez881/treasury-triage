@@ -516,8 +516,8 @@ with pruebas:
     # cada gráfica, de la primera semilla nueva de la tanda que probó ese cambio
     resumen = RESULTADOS / "resumen_1000_semanas.png"  # la de video/hacer_imagenes.py: tres cifras que se leen de un vistazo
     if resumen.exists():
-        st.image(str(resumen), alt="Weeks the business stopped, weeks below the reserve and cost per week, against "
-                                    "simpler agents")
+        st.image(str(resumen), alt="Weeks the business stopped, weeks below the reserve and cost per week: Treasury "
+                                    "Triage and the same three simpler agents in every column")
     for semilla, nombre, texto in ((2031, "agentes", "Treasury Triage against simpler agents on the same 1,000 weeks"),
                                    (2029, "calibracion", "Calibration of the receivables forecast")):
         ruta = RESULTADOS / f"simulacion_1000_normales_semilla{semilla}_{nombre}.png"
@@ -526,7 +526,8 @@ with pruebas:
     st.markdown("- The business never stopped (2 fresh seeds). With a reserve that is never touched, it stopped in "
                 "12-13% of weeks\n"
                 "- About \\$940 a week cheaper than a rule-based agent with no forecast, and \\$530-\\$570 cheaper "
-                "than never touching the reserve\n"
+                "than never touching the reserve. Paying bills in order costs less (\\$105-\\$112), but only because "
+                "going below the reserve has no price in this cost\n"
                 "- Cash never went below zero. The reserve was used in 5-7% of weeks, always with a person's approval, "
                 "against 14% when paying bills in order\n"
                 "- It learns from every payment: the forecast stays within 6 points of what really happened\n"
