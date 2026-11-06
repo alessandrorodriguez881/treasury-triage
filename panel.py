@@ -20,7 +20,7 @@ import preparar_sandbox
 from aprobaciones import APROBACIONES, CON_RESERVA, cotizacion, titulo
 from comprobacion_metal import comprobaciones_de, precalentar, texto_tarjeta
 from demo import (ENV, comprobar_beneficiarios, conciliar, convertir, deposito_globex, esperar_conciliacion,
-                  hay_grabacion, huella, leer_correos, pagar, situacion, ya_conciliados, ya_hecho)
+                  hay_grabacion, huella, leer_correos, pagar, paso_siguiente, situacion, ya_conciliados, ya_hecho)
 from demo import resumen as plan_para_claude
 from escenario import (BANDEJA, BASE, COBROS, CONCEPTOS, DATA, MODEL, PAGO_GLOBEX, facturas_de, facturas_proveedor,
                        fecha_ronda, guardar_facturas, guardar_senales, nueva_ronda, receipts, ronda_actual, senales_de)
@@ -210,24 +210,43 @@ def decidir(log, fp: str, aprobar: bool) -> None:
 
 # ---------- barra lateral: los pasos de la demo ----------
 pulsado = None  # (nombre, función) del paso que hay que ejecutar en esta pasada
+con_claude = claude_disponible()
+lee = ("Claude reads the inbox" if con_claude else "Claude reads the inbox (replay of a real run)"
+       if hay_grabacion() else "Read the inbox (rehearsal, no Claude key)")
+por_aprobar = sum(de_ronda(r) for r in book.pending.values())
+toca = paso_siguiente(libro, ronda, senales, facturas, globex_pagado, por_aprobar)  # su botón sale resaltado
+
+
+def resaltar(*pasos) -> str:
+    return "primary" if toca in pasos else "secondary"
+
+
 with st.sidebar:
     st.header("Run the demo")
     st.caption(f"Round `{ronda}` · " + ("simulated Airwallex sandbox · no keys" if SIMULADO
                                          else "Airwallex sandbox · no real money"))
-    siguiente = st.empty()  # el paso que toca ahora: se escribe cuando ya se sabe en qué punto va la ronda
-    if st.button("1 · Reset sandbox", icon=":material/restart_alt:", width="stretch"):
+    if st.button("1 · Reset sandbox", icon=":material/restart_alt:", type=resaltar(None), width="stretch"):
         pulsado = ("Resetting the sandbox", reiniciar)
-    con_claude = claude_disponible()
-    lee = ("Claude reads the inbox" if con_claude else "Claude reads the inbox (replay of a real run)"
-           if hay_grabacion() else "Read the inbox (rehearsal, no Claude key)")
-    if st.button(f"2 · {lee}", icon=":material/mail:", width="stretch", disabled=senales is not None):
+    if st.button(f"2 · {lee}", icon=":material/mail:", type=resaltar("2"), width="stretch",
+                 disabled=senales is not None):
         pulsado = (lee, lambda log: leer(log, con_claude))
-    if st.button("3 · Execute the plan", icon=":material/play_arrow:", type="primary", width="stretch"):
+    if st.button("3 · Execute the plan", icon=":material/play_arrow:", type=resaltar("3", "3 otra vez"),
+                 width="stretch"):
         pulsado = ("Executing the plan on Airwallex", ejecutar)
-    if st.button(f"4 · Globex pays {dinero(PAGO_GLOBEX, decimales=0)}", icon=":material/payments:", width="stretch",
+    if st.button(f"4 · Globex pays {dinero(PAGO_GLOBEX, decimales=0)}", icon=":material/payments:",
+                 type=resaltar("4"), width="stretch",
                  disabled=globex_pagado or ya_hecho(libro, f"deposit:{ronda}:Globex")):
         pulsado = ("Globex pays", cobra_globex)
-    st.caption("After step 4, press 3 again: the agent converts at the approved quotes and pays.")
+    # Lo que toca, debajo de los botones: si fuera encima, los botones se moverían cada vez que la frase cambia de largo
+    if not pulsado:
+        siguiente = {"2": f"2 · {lee}",
+                     "aprobar": f"approve or reject the {f'{por_aprobar} cards' if por_aprobar != 1 else 'card'} "
+                                "waiting for you on the Today tab",
+                     "3": "3 · Execute the plan",
+                     "4": f"4 · Globex pays {dinero(PAGO_GLOBEX, decimales=0)}",
+                     "3 otra vez": "3 · Execute the plan again, with the new cash"}.get(toca)
+        st.markdown(f":material/arrow_forward: **Next:** {md(siguiente)}" if siguiente else
+                    ":material/check_circle: **Done.** Step 1 starts the demo again.")
     with st.expander("Agent log", icon=":material/receipt_long:"):
         for linea in st.session_state.log[:40]:
             if linea.startswith("**"):
@@ -312,16 +331,6 @@ if s.pagadas and globex_pagado and all(o.id in s.pagadas for o in s.obligaciones
     st.success(md(f"Reserve intact: {dinero(caja - POLICY.reserve_floor, decimales=0)} above the "
                   f"{dinero(POLICY.reserve_floor, decimales=0)} floor. The new supplier still waits for a person."),
                title="All bills the agent may pay are paid", icon=":material/verified:")
-
-por_decidir = [fp for fp, r in book.pending.items() if de_ronda(r)]
-pagables = [o for o in s.obligaciones if not o.policy_exception]
-paso = (f"2 · {lee}" if senales is None else
-        "approve or reject the cards on the Today tab" if por_decidir else
-        "3 · Execute the plan" if not s.pagadas else
-        f"4 · Globex pays {dinero(PAGO_GLOBEX, decimales=0)}" if not globex_pagado else
-        "3 · Execute the plan again" if any(o.id not in s.pagadas for o in pagables) else None)
-siguiente.markdown(f":material/arrow_forward: **Next:** {md(paso)}" if paso else
-                   ":material/check_circle: **Done.** Step 1 starts the demo again.")
 
 hoy, pruebas, auditoria, reglas = st.tabs(["Today", "Evidence: 1,000 weeks", "Audit trail", "How it decides"])
 

@@ -99,6 +99,24 @@ def situacion(rail: AirwallexRail, libro: Ledger, ronda: str, senales_correo: li
     return Situacion(saldos, rates, pagadas, pendientes, senales, plan, enviadas, obligaciones, comprobadas)
 
 
+def paso_siguiente(libro: Ledger, ronda: str, senales_correo: list | None, facturas: list, globex_pagado: bool,
+                   por_aprobar: int) -> str | None:
+    """Lo que toca ahora en la demo: «2» (leer la bandeja), «aprobar», «3», «4» (cobra Globex), «3 otra vez», o None
+    cuando ya está todo. Sale del libro de la ronda, sin preguntar a Airwallex: la pantalla lo necesita antes de pedir
+    los saldos, para resaltar el botón que toca."""
+    if senales_correo is None:
+        return "2"
+    if por_aprobar:
+        return "aprobar"
+    obligaciones, _ = apply_invoice_checks(OBLIGATIONS, list(facturas), fecha_ronda(ronda), EN_FICHA)
+    pagadas = {o.id for o in obligaciones if ya_hecho(libro, f"pay:{ronda}:{o.id}")}
+    if not pagadas:
+        return "3"
+    if not globex_pagado:
+        return "4"
+    return "3 otra vez" if any(o.id not in pagadas for o in obligaciones if not o.policy_exception) else None
+
+
 def huella(plan: dict | None) -> tuple | None:
     """Lo que cuenta el resumen de Claude y no se mueve con el tipo de cambio del momento: la confianza, lo pagado,
     las decisiones y las divisas que hay que comprar (y si piden permiso). Si cambia, su resumen ya no está al día."""

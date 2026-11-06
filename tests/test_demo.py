@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from demo import avanzar, en_camino, esperar_saldo
+from demo import avanzar, en_camino, esperar_saldo, paso_siguiente
 from rail_airwallex import AirwallexError
 from triage_core.ledger import Ledger
 
@@ -138,3 +138,20 @@ def test_without_an_approval_book_it_does_not_pay_from_the_reserve(tmp_path):
     rail = PayRail()
     pagar(rail, Ledger(tmp_path / "ledger.json"), from_the_reserve(), "r1", set(), log=lambda m: None)
     assert rail.transfers == []
+
+
+def test_the_next_step_follows_the_order_of_the_demo(tmp_path):
+    led, ronda = Ledger(tmp_path / "ledger.json"), "r20261106-120000"
+
+    def paid(oid):
+        led.update(led.begin(f"pay:{ronda}:{oid}", "transfer", 1, "USD", oid), "PAID", f"tr_{oid}")
+
+    assert paso_siguiente(led, ronda, None, [], False, 0) == "2"
+    assert paso_siguiente(led, ronda, [], [], False, 2) == "aprobar"
+    assert paso_siguiente(led, ronda, [], [], False, 0) == "3"
+    paid("SHIP-1")
+    assert paso_siguiente(led, ronda, [], [], False, 0) == "4"
+    assert paso_siguiente(led, ronda, [], [], True, 0) == "3 otra vez"
+    for oid in ("SUP-2", "UK-4", "SAAS-3"):
+        paid(oid)
+    assert paso_siguiente(led, ronda, [], [], True, 0) is None  # NEW-5 waits for a person, not for the agent
