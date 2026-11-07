@@ -161,7 +161,7 @@ def cliente(env_path: Path) -> anthropic.Anthropic:
         return anthropic.Anthropic(api_key=clave)
     if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"):
         return anthropic.Anthropic()
-    raise SinClave("ANTHROPIC_API_KEY is missing in app/.env. To rehearse without Claude, use --correo-globex")
+    raise SinClave("ANTHROPIC_API_KEY is missing in .env. To rehearse without Claude, use --correo-globex")
 
 
 def leer_bandeja(client: anthropic.Anthropic, bandeja: Bandeja) -> str:

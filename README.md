@@ -30,7 +30,7 @@ Press the sidebar buttons in order and check what you should see:
 | **4 · Globex pays $18,000** | The agent finds the deposit in Airwallex and matches it to invoice GX-2207. Confidence 75% → 93%. *Only* the SaaS decision changes: defer → pay |
 | **3 · Execute the plan** again | Conversions at the approved quotes, every bill the agent may pay is PAID, **reserve intact** (about $10,300 above the $15,000 floor). Q. Consulting still waits for a person |
 
-**Proof it ran on the real sandbox:** [`evidencia/recibo_r20261029-011728.md`](evidencia/recibo_r20261029-011728.md) (29 Oct) and [`evidencia/recibo_r20261106-204646.md`](evidencia/recibo_r20261106-204646.md) (6 Nov, the round recorded for the demo video) list every conversion, transfer and deposit of a real demo round with its Airwallex id, re-queried from Airwallex (all PAID or SETTLED), Globex's deposit matched to its invoice, and the audit trail verified.
+**Proof it ran on the real sandbox:** [`evidencia/recibo_r20261029-011728.md`](evidencia/recibo_r20261029-011728.md) (29 Oct) and [`evidencia/recibo_r20261106-204646.md`](evidencia/recibo_r20261106-204646.md) (6 Nov, the round recorded for the demo video) list every conversion, transfer and deposit of a real demo round with its Airwallex id. Re-queried from Airwallex, every conversion and transfer is PAID or SETTLED (a failed £0.13 opening sweep is listed too), Globex's deposit is matched to its invoice, and the audit trail is verified.
 
 ## What it does
 
@@ -124,14 +124,14 @@ The same synthetic weeks were run with six agents:
 
 Customers' true on-time odds were hidden from all of them, and the hypotheses were written in the code before running (`simulacion.py`).
 
-**The agent learns from every payment.** Each payment joins its customer's history four weeks later, once even the late ones have arrived. Every 20 weeks a self-check compares what the agent believed with what happened, and corrects the base forecast and how much an email is worth. It is a penalized logistic regression (`triage_core/collections_calibration.py`), shared with Receivables Copilot.
+**The agent learns from every payment.** Each payment joins its customer's history four weeks later, once even the late ones have arrived. Every 20 weeks a self-check compares what the agent believed with what happened, and corrects the base forecast and how much an email is worth. It is a penalized logistic regression (`motor_comun/triage_core/collections_calibration.py`), shared with Receivables Copilot.
 
 ![Weeks the business stopped, weeks below the reserve and cost per week: Treasury Triage and the same three simpler agents in every column](resultados/resumen_1000_semanas.png)
 
 On the latest two fresh seeds (2031 and 2032):
 - **The business never stopped.** The same engine that never touches the reserve stopped it in 12-13% of weeks.
 - **About $940 a week cheaper** than the no-forecast agent, and **$530-$570 cheaper** than never touching the reserve. Paying in order costs less ($105-$112), but only because going below the reserve has no price in this cost.
-- **Cash never went below zero.** The reserve was used in 5-7% of weeks, always with a person's approval, against 14% when paying in order. The agent knows that risk: it predicted 5.0-6.2% and it happened in 5.4-6.6% of weeks.
+- **Cash never went below zero.** It went below the reserve in 5-7% of weeks, against 14% when paying in order. The agent only plans to use the reserve with a person's approval, to pay the bill that would stop the business; the other dips (15% of them) were unplanned, within the risk the plan accepts. The agent knows that risk: it predicted 5.0-6.2% and it happened in 5.4-6.6% of weeks.
 - **The forecast stays within 6 points** of what really happened in every bucket (on the seeds that tested learning: it was 11 points off without learning, and it closes 56-80% of the gap to a forecast that knew the hidden truth).
 - With "worse than usual" approvals, it **asks a person for FX in 1 week in 4 or 5**, and those weeks really are riskier: 63-74% have a late payment, against 47-48% of the others.
 
@@ -195,9 +195,9 @@ In the sidebar:
 5. **Globex pays $18,000.**
 6. **Execute the plan** again.
 
-The same steps exist on the command line: `reiniciar_demo.py`, `ejecutar_plan.py --leer-correo`, `aprobar.py`, `ejecutar_plan.py --deposito-globex`.
+The same steps exist on the command line: `reiniciar_demo.py`; `ejecutar_plan.py --leer-correo` (without a Claude key it replays the last real Claude run, like the screen); `aprobar.py` to list the cards and `aprobar.py <code>` to approve each one; then `ejecutar_plan.py --deposito-globex`.
 
-Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 137 tests). The engine lives in `motor_comun/`.
+Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 138 tests). The engine lives in `motor_comun/`.
 
 ## Things the sandbox taught us
 
@@ -223,7 +223,7 @@ Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app an
 
 ## Shared engine
 
-The forecasting, approval, ledger and signal-checking engine (`triage_core/`) is also used by a separate product, Receivables Copilot (PayPal invoices). The products, decisions and integrations are different.
+The forecasting, approval, ledger and signal-checking engine (`motor_comun/triage_core/`) is also used by a separate product, Receivables Copilot (PayPal invoices). The products, decisions and integrations are different.
 
 ## License
 

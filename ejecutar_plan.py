@@ -9,7 +9,8 @@
 Con --leer-correo, antes de decidir, Claude lee las facturas de los proveedores y la bandeja (`agente_ia.py`):
 registra lo que dice cada factura y cada correo de cliente (el código lo comprueba todo; una factura que no
 cuadra con la lista de pagos o con la ficha del proveedor pasa a una persona) y explica el plan. Lo aceptado
-se guarda para toda la ronda. --correo-globex hace lo mismo sin Claude, para ensayar sin clave. Después, la
+se guarda para toda la ronda. Sin clave de Claude, repite su última lectura de verdad (`grabacion_claude.json`),
+como la pantalla. --correo-globex hace lo mismo sin Claude, para ensayar sin clave. Después, la
 cuenta de una factura que no está en ninguna ficha se comprueba en Metal (`demo.comprobar_beneficiarios`).
 
 Con --deposito-globex, antes de ejecutar llega el pago de Globex (depósito simulado de 18.000 $): el motor
@@ -78,7 +79,11 @@ def main() -> int:
         if senales is not None:
             print("This round's emails were already read: using the saved signals")
         else:
-            lectura = leer_correos(rail, libro, args.ronda, globex_pagado, con_claude=args.leer_correo)
+            from agente_ia import SinClave
+            try:
+                lectura = leer_correos(rail, libro, args.ronda, globex_pagado, con_claude=args.leer_correo)
+            except SinClave:  # sin clave de Claude: su última lectura de verdad, como en la pantalla
+                lectura = leer_correos(rail, libro, args.ronda, globex_pagado, con_claude=False, repetir=True)
             print("Inbox:")
             for paso in lectura.pasos:
                 print(f"   {paso}")
