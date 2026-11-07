@@ -155,3 +155,11 @@ def test_the_next_step_follows_the_order_of_the_demo(tmp_path):
     for oid in ("SUP-2", "UK-4", "SAAS-3"):
         paid(oid)
     assert paso_siguiente(led, ronda, [], [], True, 0) is None  # NEW-5 waits for a person, not for the agent
+
+
+def test_after_a_person_rejects_the_conversions_the_round_is_done(tmp_path):
+    led, ronda = Ledger(tmp_path / "ledger.json"), "r20261106-120000"
+    for oid in ("SHIP-1", "SAAS-3"):
+        led.update(led.begin(f"pay:{ronda}:{oid}", "transfer", 1, "USD", oid), "PAID", f"tr_{oid}")
+    assert paso_siguiente(led, ronda, [], [], True, 0) == "3 otra vez"
+    assert paso_siguiente(led, ronda, [], [], True, 0, frozenset({"EUR", "GBP"})) is None

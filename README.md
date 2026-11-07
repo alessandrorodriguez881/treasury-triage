@@ -197,7 +197,7 @@ In the sidebar:
 
 The same steps exist on the command line: `reiniciar_demo.py`; `ejecutar_plan.py --leer-correo` (without a Claude key it replays the last real Claude run, like the screen); `aprobar.py` to list the cards and `aprobar.py <code>` to approve each one; then `ejecutar_plan.py --deposito-globex`.
 
-Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 138 tests). The engine lives in `motor_comun/`.
+Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 139 tests). The engine lives in `motor_comun/`.
 
 ## Things the sandbox taught us
 

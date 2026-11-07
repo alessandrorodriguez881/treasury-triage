@@ -17,13 +17,14 @@ import streamlit as st
 
 import ajustar_saldos_demo
 import preparar_sandbox
-from aprobaciones import APROBACIONES, CON_RESERVA, cotizacion, titulo
+from aprobaciones import APROBACIONES, CON_RESERVA, cotizacion, rechazo_de_una_persona, titulo
 from comprobacion_metal import comprobaciones_de, precalentar, texto_tarjeta
 from demo import (ENV, comprobar_beneficiarios, conciliar, convertir, deposito_globex, esperar_conciliacion,
                   hay_grabacion, huella, leer_correos, pagar, paso_siguiente, situacion, ya_conciliados, ya_hecho)
 from demo import resumen as plan_para_claude
-from escenario import (BANDEJA, BASE, COBROS, CONCEPTOS, DATA, MODEL, PAGO_GLOBEX, facturas_de, facturas_proveedor,
-                       fecha_ronda, guardar_facturas, guardar_senales, nueva_ronda, receipts, ronda_actual, senales_de)
+from escenario import (BANDEJA, BASE, COBROS, CONCEPTOS, DATA, DIVISAS, MODEL, PAGO_GLOBEX, facturas_de,
+                       facturas_proveedor, fecha_ronda, guardar_facturas, guardar_senales, nueva_ronda, receipts,
+                       ronda_actual, senales_de)
 from modo import SIMULADO, conectar
 from rail_airwallex import AirwallexError, AirwallexRail, read_env
 from triage_core.approvals import ApprovalBook
@@ -177,6 +178,7 @@ def leer(log, con_claude: bool) -> None:
                               "facturas": len(lectura.facturas),
                               "no_cuadran": [o.id for o in despues.obligaciones if despues.comprobadas.get(o.id)],
                               "por_aprobar": sum(c.needs_approval for c in despues.plan.conversions)}
+    st.session_state.cambios = None  # si Globex ya pagó, su aviso describía el plan de antes de leer la bandeja
     log(f"Inbox read: {len(lectura.facturas)} invoice(s) and {len(lectura.senales)} signal(s) accepted")
     comprobar_beneficiarios(ronda, lectura.facturas, log)  # Metal: prueba para quien decide; nunca para la demo
 
@@ -214,7 +216,8 @@ con_claude = claude_disponible()
 lee = ("Claude reads the inbox" if con_claude else "Claude reads the inbox (replay of a real run)"
        if hay_grabacion() else "Read the inbox (rehearsal, no Claude key)")
 por_aprobar = sum(de_ronda(r) for r in book.pending.values())
-toca = paso_siguiente(libro, ronda, senales, facturas, globex_pagado, por_aprobar)  # su botón sale resaltado
+rechazadas = frozenset(d for d in DIVISAS if rechazo_de_una_persona(book, d, ronda))  # el «no» vale para la ronda
+toca = paso_siguiente(libro, ronda, senales, facturas, globex_pagado, por_aprobar, rechazadas)  # botón resaltado
 
 
 def resaltar(*pasos) -> str:
@@ -448,7 +451,9 @@ with hoy:
                 if d.action == CONVERT_AND_FUND and conv and primera.get(o.currency) == o.id:
                     st.markdown(md(f":material/currency_exchange: Buy **{dinero(conv.buy_amount, conv.buy_currency)}**"
                                    f" for about {dinero(conv.base_cost, decimales=0)} · ")
-                                + (":orange-badge[needs a person · R5]" if conv.needs_approval
+                                + (":red-badge[rejected by a person: not done this round]"
+                                   if o.currency in rechazadas
+                                   else ":orange-badge[needs a person · R5]" if conv.needs_approval
                                    else ":blue-badge[agent can do it alone · R5]"))
             if o.id in s.comprobadas:
                 if s.comprobadas[o.id]:

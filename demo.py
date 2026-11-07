@@ -100,10 +100,11 @@ def situacion(rail: AirwallexRail, libro: Ledger, ronda: str, senales_correo: li
 
 
 def paso_siguiente(libro: Ledger, ronda: str, senales_correo: list | None, facturas: list, globex_pagado: bool,
-                   por_aprobar: int) -> str | None:
+                   por_aprobar: int, rechazadas: frozenset[str] = frozenset()) -> str | None:
     """Lo que toca ahora en la demo: «2» (leer la bandeja), «aprobar», «3», «4» (cobra Globex), «3 otra vez», o None
     cuando ya está todo. Sale del libro de la ronda, sin preguntar a Airwallex: la pantalla lo necesita antes de pedir
-    los saldos, para resaltar el botón que toca."""
+    los saldos, para resaltar el botón que toca. `rechazadas`: las divisas cuya conversión rechazó una persona en esta
+    ronda; esos pagos ya no esperan a que el agente vuelva a ejecutar."""
     if senales_correo is None:
         return "2"
     if por_aprobar:
@@ -114,7 +115,8 @@ def paso_siguiente(libro: Ledger, ronda: str, senales_correo: list | None, factu
         return "3"
     if not globex_pagado:
         return "4"
-    return "3 otra vez" if any(o.id not in pagadas for o in obligaciones if not o.policy_exception) else None
+    return "3 otra vez" if any(o.id not in pagadas for o in obligaciones
+                               if not o.policy_exception and o.currency not in rechazadas) else None
 
 
 def huella(plan: dict | None) -> tuple | None:
