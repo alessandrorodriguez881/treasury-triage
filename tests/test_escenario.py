@@ -69,12 +69,38 @@ def test_reading_the_demo_invoices_keeps_the_same_story():
 def test_globex_payment_only_changes_the_saas_and_keeps_the_reserve():
     """After the transport is paid (12,003 USD with the ACH fee), Globex pays and the plan is recomputed."""
     pending = {"SUP-2", "SAAS-3", "UK-4", "NEW-5"}
-    before = plan(pending, {"USD": 25_997.0, "EUR": 1_200.0, "GBP": 0.0})
-    after = plan(pending, {"USD": 25_997.0 + PAGO_GLOBEX, "EUR": 1_200.0, "GBP": 0.0}, globex_pagado=True)
+    usd = SALDOS_INICIALES["USD"] - 12_003.0
+    before = plan(pending, {"USD": usd, "EUR": 1_200.0, "GBP": 0.0})
+    after = plan(pending, {"USD": usd + PAGO_GLOBEX, "EUR": 1_200.0, "GBP": 0.0}, globex_pagado=True)
     assert before.action_of("SUP-2") == CONVERT_AND_FUND and before.action_of("UK-4") == CONVERT_AND_FUND
     assert diff_plans(before, after) == [("SAAS-3", DEFER, FUND)]  # the only decision the new cash changes
     assert after.action_of("NEW-5") == ESCALATE                      # money never overrides policy
     assert after.risk.p_breach <= TreasuryPolicy().max_breach_prob
     # USD left after both conversions and the three payments stays above the 15,000 floor
     spent = sum(c.base_cost for c in after.conversions) + 1_800 + 3
-    assert 25_997.0 + PAGO_GLOBEX - spent > TreasuryPolicy().reserve_floor
+    assert usd + PAGO_GLOBEX - spent > TreasuryPolicy().reserve_floor
+
+
+def test_the_demo_story_survives_fx_moves():
+    """10-nov: with 38,000 USD the story hung on a 27 USD margin, and EUR and GBP 0.8% dearer than on 27-oct changed
+    the plan from the start. From the starting balances, the whole story must hold with EUR and GBP from 4% cheaper
+    to 6% dearer than on 27-oct, together or in opposite directions."""
+    start = ["FUND", "CONVERT_AND_FUND", "DEFER", "CONVERT_AND_FUND", "ESCALATE"]
+    acme = Signal("msg-102", "Acme", "confirms_payment", "scheduled in tomorrow's payment run")
+    for eur, gbp in [(m, m) for m in (0.96, 0.98, 1.0, 1.02, 1.04, 1.06)] + [(0.97, 1.03), (1.03, 0.97)]:
+        rates = {"USD": 1.0, "EUR": RATES["EUR"] * eur, "GBP": RATES["GBP"] * gbp}
+        run = lambda pending, balances, senales, **kw: plan_treasury(  # noqa: E731
+            [o for o in OBLIGATIONS if o.id in pending], balances, rates, receipts(senales, **kw), TreasuryPolicy(),
+            usual_confidence=MODEL.pool_rate)
+        everything = {o.id for o in OBLIGATIONS}
+        calm = run(everything, SALDOS_INICIALES, [])
+        assert [d.action for d in calm.decisions] == start and not any(c.needs_approval for c in calm.conversions)
+        for senales in ([SENAL_GLOBEX], [SENAL_GLOBEX, acme]):
+            worried = run(everything, SALDOS_INICIALES, senales)
+            assert [d.action for d in worried.decisions] == start, (eur, gbp, senales)
+            assert [c.needs_approval for c in worried.conversions] == [True, True]
+        usd = SALDOS_INICIALES["USD"] - 12_003.0  # after the freight
+        pending = everything - {"SHIP-1"}
+        before = run(pending, {**SALDOS_INICIALES, "USD": usd}, [SENAL_GLOBEX, acme])
+        after = run(pending, {**SALDOS_INICIALES, "USD": usd + PAGO_GLOBEX}, [SENAL_GLOBEX, acme], globex_pagado=True)
+        assert diff_plans(before, after) == [("SAAS-3", DEFER, FUND)], (eur, gbp)

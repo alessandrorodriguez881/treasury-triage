@@ -1,6 +1,7 @@
 """Escenario sintético de la demo: 5 pagos en 3 divisas, 3 clientes con historial y una bandeja de correos.
 
-Todo es inventado. Son los mismos datos que usan las pruebas del motor (motor_comun/tests/test_core.py).
+Todo es inventado. Son los mismos datos que usan las pruebas del motor (motor_comun/tests/test_core.py), salvo el
+saldo inicial en dólares (39.000 desde el 10-nov; ver `SALDOS_INICIALES`).
 """
 from dataclasses import asdict
 from datetime import date, datetime, timedelta
@@ -21,7 +22,11 @@ from triage_core.treasury_decision import Obligation
 
 BASE = "USD"
 DIVISAS = ("USD", "EUR", "GBP")
-SALDOS_INICIALES = {"USD": 38_000, "EUR": 1_200, "GBP": 0}
+# 10-nov: 39.000 $ y no 38.000. Con 38.000, la historia de la demo (convertir euros y libras, aplazar el software y,
+# tras el correo de Globex, pedir permiso para las dos conversiones) dependía de un margen de 27 $: con el euro y la
+# libra un 0,8 % más caros que el 27-oct, el plan ya era otro desde el principio. Con 39.000 aguanta del -4 % al +6 %
+# frente a los tipos del 27-oct (`tests/test_escenario.py`, «survives_fx_moves»)
+SALDOS_INICIALES = {"USD": 39_000, "EUR": 1_200, "GBP": 0}
 D0 = date(2026, 9, 1)
 
 # Cada vez que se reinicia la demo empieza una ronda nueva: lo pagado, convertido o aprobado en otra ronda no

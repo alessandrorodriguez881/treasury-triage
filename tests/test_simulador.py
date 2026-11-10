@@ -42,7 +42,7 @@ def abierto(tmp_path, monkeypatch):
 def test_the_whole_demo_runs_without_keys(abierto, tmp_path):
     rail, libro, book = abierto, Ledger(tmp_path / "ledger.json"), ApprovalBook.load(tmp_path / "aprobaciones.json")
     saldos = {d: float(b["available_amount"]) for d, b in rail.balances().items()}
-    assert saldos == {"USD": 38_000, "EUR": 1_200}
+    assert saldos == {"USD": 39_000, "EUR": 1_200}
 
     lectura = leer_correos(rail, libro, RONDA, False, con_claude=False)  # ensayo: el correo de Globex
     s = situacion(rail, libro, RONDA, lectura.senales, False, lectura.facturas)
@@ -72,7 +72,7 @@ def test_it_behaves_like_the_sandbox_where_it_matters(abierto):
     assert rail.create_transfer("req-1", benef, "USD", "USD", 1_000, "test")["id"] == t["id"]  # nunca dos veces
     rail.simulate_transfer_status(t["id"], "FAILED")
     usd = float(rail.balances()["USD"]["available_amount"])
-    assert usd == pytest.approx(38_000 - PAYOUT_FEES[("LOCAL", "USD")])  # vuelve el importe, no la comisión
+    assert usd == pytest.approx(39_000 - PAYOUT_FEES[("LOCAL", "USD")])  # vuelve el importe, no la comisión
     with pytest.raises(AirwallexError) as e:
         rail.create_transfer("req-2", benef, "USD", "USD", 1_000_000, "too much")
     assert e.value.code == "balance_insufficient"
