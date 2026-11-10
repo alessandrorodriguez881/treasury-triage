@@ -28,7 +28,9 @@ Press the sidebar buttons in order and check what you should see:
 | **3 · Execute the plan** | Freight paid (PAID). Both conversions now need a person: two approval cards with a locked quote. SaaS deferred, new supplier escalated |
 | **Approve** both cards | They show as approved by the owner |
 | **4 · Globex pays $18,000** | The agent finds the deposit in Airwallex and matches it to invoice GX-2207. Confidence 75% → 93%. *Only* the SaaS decision changes: defer → pay |
-| **3 · Execute the plan** again | Conversions at the approved quotes, every bill the agent may pay is PAID, **reserve intact** (about $10,300 above the $15,000 floor). Q. Consulting still waits for a person |
+| **3 · Execute the plan** again | Conversions at the approved quotes, every bill the agent may pay is PAID, **reserve intact** (about $11,200 above the $15,000 floor). Q. Consulting still waits for a person |
+
+**Then try another week.** The **What if?** tab runs the same planner on a different week: other balances, bills, customer emails and FX moves, at today's rates. Press **Another scenario**, or change any number, and see which decisions move and why, against the demo's week. The rules don't move: the new supplier always goes to a person, and a conversion above the agent's limit needs one. Nothing in that tab touches Airwallex, Claude or Metal.
 
 **Proof it ran on the real sandbox:** [`evidencia/recibo_r20261029-011728.md`](evidencia/recibo_r20261029-011728.md) (29 Oct) and [`evidencia/recibo_r20261106-204646.md`](evidencia/recibo_r20261106-204646.md) (6 Nov, the round recorded for the demo video) list every conversion, transfer and deposit of a real demo round with its Airwallex id. Re-queried from Airwallex, every conversion and transfer is PAID or SETTLED (a failed £0.13 opening sweep is listed too), Globex's deposit is matched to its invoice, and the audit trail is verified.
 
@@ -188,7 +190,7 @@ python -m streamlit run panel.py
 ```
 
 In the sidebar:
-1. **Reset sandbox**: brings the sandbox back to $38,000 / €1,200 / £0.
+1. **Reset sandbox**: brings the sandbox back to $39,000 / €1,200 / £0.
 2. **Claude reads the invoices and the inbox.**
 3. **Execute the plan.**
 4. Approve the cards.
@@ -197,7 +199,7 @@ In the sidebar:
 
 The same steps exist on the command line: `reiniciar_demo.py`; `ejecutar_plan.py --leer-correo` (without a Claude key it replays the last real Claude run, like the screen); `aprobar.py` to list the cards and `aprobar.py <code>` to approve each one; then `ejecutar_plan.py --deposito-globex`.
 
-Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 139 tests). The engine lives in `motor_comun/`.
+Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 147 tests). The engine lives in `motor_comun/`.
 
 ## Things the sandbox taught us
 

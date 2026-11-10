@@ -26,6 +26,7 @@ from escenario import (BANDEJA, BASE, COBROS, CONCEPTOS, DATA, DIVISAS, MODEL, P
                        facturas_proveedor, fecha_ronda, guardar_facturas, guardar_senales, nueva_ronda, receipts,
                        ronda_actual, senales_de)
 from modo import SIMULADO, conectar
+import otro_escenario
 from rail_airwallex import AirwallexError, AirwallexRail, read_env
 from triage_core.approvals import ApprovalBook
 from triage_core.cash_simulation import cash_bands
@@ -335,7 +336,8 @@ if s.pagadas and globex_pagado and all(o.id in s.pagadas for o in s.obligaciones
                   f"{dinero(POLICY.reserve_floor, decimales=0)} floor. The new supplier still waits for a person."),
                title="All bills the agent may pay are paid", icon=":material/verified:")
 
-hoy, pruebas, auditoria, reglas = st.tabs(["Today", "Evidence: 1,000 weeks", "Audit trail", "How it decides"])
+hoy, que_pasaria, pruebas, auditoria, reglas = st.tabs(
+    ["Today", "What if?", "Evidence: 1,000 weeks", "Audit trail", "How it decides"])
 
 
 # ---------- pestaña Today: una tarjeta por pago, con sus aprobaciones dentro ----------
@@ -522,6 +524,10 @@ with hoy:
                 for m in BANDEJA:
                     st.markdown(f"**{m['subject']}** · {m['from']}")
                     st.text(m["body"])
+
+# El mismo agente en otra semana (10-nov, mejora 3 del jurado): solo calcula, nunca llama a Airwallex
+with que_pasaria:
+    otro_escenario.pintar(s.rates, ACCION, ESTILO, dinero)
 
 with pruebas:
     st.subheader("Does it decide better? 1,000 simulated weeks")
