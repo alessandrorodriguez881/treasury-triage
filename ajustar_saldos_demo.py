@@ -15,6 +15,7 @@ from rail_airwallex import AirwallexError, AirwallexRail
 from triage_core.ledger import DuplicatePaymentError, Ledger
 
 OBJETIVO = SALDOS_INICIALES
+MINIMO = 1.0  # lo que sobre por debajo de esto no se barre
 TITULAR = "Sandbox Business Owner Reserve"
 # Faster Payments tiene un tope por transferencia; para vaciar 10 M de libras hace falta CHAPS
 APODOS = {"GBP": "Owner reserve GBP (CHAPS)"}
@@ -72,6 +73,11 @@ def main(rail: AirwallexRail | None = None) -> int:
         sobra = round(float(saldos.get(divisa, {}).get("available_amount", 0)) - objetivo, 2)
         if sobra <= 0:
             print(f"{divisa}: nada que ajustar")
+            continue
+        # unos céntimos del colchón de comisiones: Airwallex no los transfiere, y el intento salía como FAILED en la
+        # auditoría de la ronda (10-nov, jurado adversario)
+        if sobra < MINIMO:
+            print(f"{divisa}: sobran {sobra:,.2f}, menos de {MINIMO:.0f}: se quedan")
             continue
         print(f"{divisa}: sobran {sobra:,.2f}")
         try:

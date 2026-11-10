@@ -27,6 +27,7 @@ from escenario import (BANDEJA, BASE, COBROS, CONCEPTOS, DATA, DIVISAS, MODEL, P
                        ronda_actual, senales_de)
 from modo import SIMULADO, conectar
 import otro_escenario
+import control
 from rail_airwallex import AirwallexError, AirwallexRail, read_env
 from triage_core.approvals import ApprovalBook
 from triage_core.cash_simulation import cash_bands
@@ -211,6 +212,21 @@ def decidir(log, fp: str, aprobar: bool) -> None:
     log(f"{'Approved' if aprobar else 'Rejected'} by the owner: {titulo(req)}")
 
 
+def pausa(log) -> None:
+    if control.pausar(libro, ronda):
+        log("Agent paused by the owner: it moves no money and reads no email until you resume it")
+
+
+def reanuda(log) -> None:
+    if control.reanudar(libro, ronda):
+        log("Agent resumed by the owner")
+
+
+def rechaza(log, ob, motivo: str) -> None:
+    if control.rechazar(libro, ronda, ob, motivo):
+        log(f"Rejected by the owner: {ob.id} ({ob.payee}), {motivo}")
+
+
 # ---------- barra lateral: los pasos de la demo ----------
 pulsado = None  # (nombre, función) del paso que hay que ejecutar en esta pasada
 con_claude = claude_disponible()
@@ -219,6 +235,7 @@ lee = ("Claude reads the inbox" if con_claude else "Claude reads the inbox (repl
 por_aprobar = sum(de_ronda(r) for r in book.pending.values())
 rechazadas = frozenset(d for d in DIVISAS if rechazo_de_una_persona(book, d, ronda))  # el «no» vale para la ronda
 toca = paso_siguiente(libro, ronda, senales, facturas, globex_pagado, por_aprobar, rechazadas)  # botón resaltado
+pausado = control.en_pausa(libro, ronda)  # el dueño pausó el agente: no lee ni mueve dinero hasta que lo reanude
 
 
 def resaltar(*pasos) -> str:
@@ -232,15 +249,23 @@ with st.sidebar:
     if st.button("1 · Reset sandbox", icon=":material/restart_alt:", type=resaltar(None), width="stretch"):
         pulsado = ("Resetting the sandbox", reiniciar)
     if st.button(f"2 · {lee}", icon=":material/mail:", type=resaltar("2"), width="stretch",
-                 disabled=senales is not None):
+                 disabled=senales is not None or pausado):
         pulsado = (lee, lambda log: leer(log, con_claude))
     if st.button("3 · Execute the plan", icon=":material/play_arrow:", type=resaltar("3", "3 otra vez"),
-                 width="stretch"):
+                 width="stretch", disabled=pausado):
         pulsado = ("Executing the plan on Airwallex", ejecutar)
     if st.button(f"4 · Globex pays {dinero(PAGO_GLOBEX, decimales=0)}", icon=":material/payments:",
                  type=resaltar("4"), width="stretch",
                  disabled=globex_pagado or ya_hecho(libro, f"deposit:{ronda}:Globex")):
         pulsado = ("Globex pays", cobra_globex)
+    # 10-nov: el dueño puede parar el agente en cualquier momento (queda en la auditoría)
+    if pausado:
+        st.button("Resume the agent", icon=":material/play_circle:", type=resaltar("reanudar"), width="stretch",
+                  on_click=_accion, args=("Owner control", reanuda))
+    else:
+        st.button("Pause the agent", icon=":material/pause_circle:", width="stretch",
+                  help="While paused, the agent moves no money and reads no email. Recorded in the audit trail.",
+                  on_click=_accion, args=("Owner control", pausa))
     # Lo que toca, debajo de los botones: si fuera encima, los botones se moverían cada vez que la frase cambia de largo
     if not pulsado:
         siguiente = {"2": f"2 · {lee}",
@@ -248,7 +273,8 @@ with st.sidebar:
                                 "waiting for you on the Today tab",
                      "3": "3 · Execute the plan",
                      "4": f"4 · Globex pays {dinero(PAGO_GLOBEX, decimales=0)}",
-                     "3 otra vez": "3 · Execute the plan again, with the new cash"}.get(toca)
+                     "3 otra vez": "3 · Execute the plan again, with the new cash",
+                     "reanudar": "resume the agent (you paused it)"}.get(toca)
         st.markdown(f":material/arrow_forward: **Next:** {md(siguiente)}" if siguiente else
                     ":material/check_circle: **Done.** Step 1 starts the demo again.")
     with st.expander("Agent log", icon=":material/receipt_long:"):
@@ -284,9 +310,21 @@ if pulsado:  # el paso corre aquí, a la vista: cada mensaje aparece mientras pa
     st.rerun()
 if st.session_state.error:
     st.error(st.session_state.error, icon=":material/error:")
+if pausado:
+    st.warning("It moves no money and reads no email until you resume it. The pause is in the audit trail.",
+               title="Agent paused by you", icon=":material/pause_circle:")
 
 s = situacion(rail, libro, ronda, senales or [], globex_pagado, facturas)
 caja = sum(a * s.rates[d] for d, a in s.saldos.items())
+
+
+def motivo_rechazo(o) -> str:
+    """Por qué dice que no el dueño a un pago que el agente le pasó: la prueba más fuerte que tiene a la vista."""
+    if (comprobaciones.get(o.id) or {}).get("result") == "no_match":
+        return f"payee check on Metal: the account is not registered to {o.payee}"
+    if s.comprobadas.get(o.id):
+        return "the invoice asks for an account that is on no supplier file"
+    return o.policy_exception or "a person said no"
 usual = MODEL.pool_rate
 
 cols = st.columns(6)
@@ -332,8 +370,10 @@ if st.session_state.cambios:
                   f"{cambios['antes']:.0%} → {cambios['despues']:.0%}. It only reopened what the new cash changes: "
                   f"{lineas}."), icon=":material/savings:")
 if s.pagadas and globex_pagado and all(o.id in s.pagadas for o in s.obligaciones if not o.policy_exception):
+    nuevo = ("You rejected the new supplier." if any(o.policy_exception and o.id in s.rechazadas for o in s.obligaciones)
+             else "The new supplier still waits for a person.")
     st.success(md(f"Reserve intact: {dinero(caja - POLICY.reserve_floor, decimales=0)} above the "
-                  f"{dinero(POLICY.reserve_floor, decimales=0)} floor. The new supplier still waits for a person."),
+                  f"{dinero(POLICY.reserve_floor, decimales=0)} floor. {nuevo}"),
                title="All bills the agent may pay are paid", icon=":material/verified:")
 
 hoy, que_pasaria, pruebas, auditoria, reglas = st.tabs(
@@ -404,6 +444,8 @@ with hoy:
         st.markdown("**Today's plan**")
         if s.pagadas:
             st.badge(f"Paid · {len(s.pagadas)}", icon=":material/verified:", color="green")
+        if s.rechazadas:
+            st.badge(f"Rejected by you · {len(s.rechazadas)}", icon=":material/block:", color="red")
         for accion in (FUND, CONVERT_AND_FUND, DEFER, ESCALATE):
             n = sum(d.action == accion for d in s.plan.decisions)
             if n:
@@ -429,6 +471,8 @@ with hoy:
                 cab.badge("Paid", icon=":material/check_circle:", color="green")
             elif o.id in s.enviadas:
                 cab.badge("Sent", icon=":material/send:", color="gray")
+            elif o.id in s.rechazadas:
+                cab.badge("Rejected", icon=":material/block:", color="red")
             else:
                 cab.badge(f"Due in {o.due_day} day{'s' if o.due_day != 1 else ''}", color="gray")
             st.caption(CONCEPTOS.get(o.id, ""))
@@ -442,6 +486,10 @@ with hoy:
                 st.caption(f":material/verified: Paid on {DONDE} (PAID)")
             elif o.id in s.enviadas:
                 st.caption("At Airwallex, not PAID yet: Execute finishes it")
+            elif o.id in s.rechazadas:
+                st.badge("Rejected by you", icon=":material/block:", color="red")
+                st.caption(md(f"Reason: {s.rechazadas[o.id]}. Out of this round's plan; the decision is in the "
+                              "audit trail."))
             elif d:
                 color, icono = ESTILO[d.action]
                 st.badge(ACCION[d.action], icon=icono, color=color)
@@ -465,6 +513,11 @@ with hoy:
                     st.caption(":material/fact_check: Invoice matches the payables list and the bank details on file")
             if o.id in comprobaciones:
                 st.caption(texto_tarjeta(comprobaciones[o.id]))
+            if d and d.action == ESCALATE and o.id not in s.rechazadas:  # 10-nov: la persona decide aquí mismo
+                st.button("Reject", key=f"rechazo-{o.id}", icon=":material/block:",
+                          help="Takes this bill out of the round's plan, with the reason, in the audit trail",
+                          on_click=_accion, args=("Owner decision",
+                                                  lambda log, ob=o, m=motivo_rechazo(o): rechaza(log, ob, m)))
             for fp, r in pendientes:
                 if de_este_pago(o, r, primera):
                     mostradas.add(fp)
@@ -559,7 +612,7 @@ with pruebas:
                 "business); reading emails helps only a little")
 
 with auditoria:
-    st.subheader("Every money movement in this round")
+    st.subheader("Every money movement and owner decision in this round")
     chequeo = libro.verify()
     if chequeo.ok:
         st.success(f"Audit trail verified: {chequeo.events} events, each chained to the one before by its hash, "
@@ -568,8 +621,10 @@ with auditoria:
                    + f". Check it yourself: {comprobar_auditoria()}", icon=":material/verified_user:")
     else:
         st.error(f"Audit trail check failed: {chequeo.problem}", icon=":material/gpp_bad:")
-    movimientos = [{"Operation": e.op_key.split(":", 1)[0], "Key": e.op_key, "Attempt": e.attempt,
-                    "Amount": dinero(e.amount, e.currency), "Counterparty": e.counterparty, "Status": e.status,
+    movimientos = [{"Operation": f"owner {e.kind}" if e.op_key.startswith("control:") else e.op_key.split(":", 1)[0],
+                    "Key": e.op_key, "Attempt": e.attempt,
+                    "Amount": dinero(e.amount, e.currency) if e.currency else "", "Counterparty": e.counterparty,
+                    "Status": e.status,
                     "Airwallex id": e.provider_id or "", "request_id": e.request_id, "Updated": e.updated_at[:19]}
                    for e in libro.entries if f":{ronda}:" in e.op_key]
     if movimientos:

@@ -76,3 +76,17 @@ def test_less_cash_defers_more_and_never_pays_what_a_person_must_decide():
     p = planificar(tight, RATES)
     assert sum(d.action == DEFER for d in p.decisions) > sum(d.action == DEFER for d in planificar(week, RATES).decisions)
     assert {d.obligation_id: d.action for d in p.decisions}["NEW-5"] == ESCALATE
+
+
+def test_what_the_video_says_when_globex_disputes_holds_across_fx_moves():
+    """The video (part 6): in What if, Globex disputes its invoice → confidence 64%, the agent defers the pound bill
+    and converts nothing without a person. It must hold with EUR and GBP 4% cheaper to 6% dearer than on 27-oct."""
+    week = esta_semana()
+    disputes = Semana(week.saldos, week.importes, week.dias, ("none", "disputes_invoice"))
+    for m in (0.96, 0.98, 1.0, 1.02, 1.04, 1.06):
+        rates = {"USD": 1.0, "EUR": RATES["EUR"] * m, "GBP": RATES["GBP"] * m}
+        p = planificar(disputes, rates)
+        acts = {d.obligation_id: d.action for d in p.decisions}
+        assert round(p.confidence * 100) == 64 and p.fx_limit == 0.0, m
+        assert acts["UK-4"] == DEFER and planificar(week, rates).decisions[3].action == CONVERT_AND_FUND, m
+        assert p.conversions and all(c.needs_approval for c in p.conversions), m

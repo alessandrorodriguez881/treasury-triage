@@ -16,6 +16,7 @@ from typing import Callable
 from aprobaciones import (APROBADA, RECHAZADA, aprobacion_de_conversion, aprobacion_de_reserva, cerrar_sobrantes,
                           cotizacion_aprobada, rechazo_de_una_persona)
 import comprobacion_metal
+import control
 from escenario import (BASE, COBROS, DIVISAS, EN_FICHA, MODEL, OBLIGATIONS, PAGO_GLOBEX, PROVEEDORES, SENAL_GLOBEX,
                        facturas_ensayo, facturas_proveedor, fecha_ronda, receipts)
 from preparar_sandbox import divisas
@@ -47,6 +48,7 @@ class Situacion:
     enviadas: set[str] = field(default_factory=set)  # creadas en Airwallex pero aún no PAID: el dinero ya está comprometido
     obligaciones: list = field(default_factory=list)  # la lista de pagos, con lo que digan las facturas comprobadas
     comprobadas: dict[str, list[str]] = field(default_factory=dict)  # factura leída -> discrepancias ([] = cuadra)
+    rechazadas: dict[str, str] = field(default_factory=dict)  # lo que el dueño rechazó en la ronda -> su motivo
 
 
 @dataclass
@@ -91,12 +93,13 @@ def situacion(rail: AirwallexRail, libro: Ledger, ronda: str, senales_correo: li
     # Lo ya pagado, o ya mandado a Airwallex, sale del plan: su dinero ya no está libre en el saldo
     pagadas = {o.id for o in obligaciones if ya_hecho(libro, f"pay:{ronda}:{o.id}")}
     enviadas = {o.id for o in obligaciones if en_camino(libro, f"pay:{ronda}:{o.id}")}
-    pendientes = [o for o in obligaciones if o.id not in pagadas | enviadas]
+    rechazadas = control.rechazados(libro, ronda)  # el «no» del dueño saca ese pago del plan de la ronda
+    pendientes = [o for o in obligaciones if o.id not in pagadas | enviadas | set(rechazadas)]
     recs = receipts(senales_correo, globex_pagado)
     senales = tuple(a for _, perfil in recs for a in perfil.adjustments)
     # La autonomía depende de cuánto peor que lo normal en esta cartera es la previsión de esta semana
     plan = plan_treasury(pendientes, saldos, rates, recs, TreasuryPolicy(), base=BASE, usual_confidence=MODEL.pool_rate)
-    return Situacion(saldos, rates, pagadas, pendientes, senales, plan, enviadas, obligaciones, comprobadas)
+    return Situacion(saldos, rates, pagadas, pendientes, senales, plan, enviadas, obligaciones, comprobadas, rechazadas)
 
 
 def paso_siguiente(libro: Ledger, ronda: str, senales_correo: list | None, facturas: list, globex_pagado: bool,
@@ -105,6 +108,8 @@ def paso_siguiente(libro: Ledger, ronda: str, senales_correo: list | None, factu
     cuando ya está todo. Sale del libro de la ronda, sin preguntar a Airwallex: la pantalla lo necesita antes de pedir
     los saldos, para resaltar el botón que toca. `rechazadas`: las divisas cuya conversión rechazó una persona en esta
     ronda; esos pagos ya no esperan a que el agente vuelva a ejecutar."""
+    if control.en_pausa(libro, ronda):
+        return "reanudar"
     if senales_correo is None:
         return "2"
     if por_aprobar:
@@ -198,6 +203,7 @@ def leer_correos(rail: AirwallexRail, libro: Ledger, ronda: str, globex_pagado: 
 
     Sin Claude: con `repetir`, la última lectura de Claude de verdad; si no, lo que registraría Claude (ensayo).
     Las dos pasan por las mismas comprobaciones del código."""
+    control.exige_en_marcha(libro, ronda)  # con el agente en pausa no lee nada
     hoy = fecha_ronda(ronda)
     plan_de = lambda senales, facturas: resumen(situacion(rail, libro, ronda, senales, globex_pagado, facturas))
     if not con_claude and repetir and hay_grabacion():
@@ -381,6 +387,7 @@ def convertir(rail: AirwallexRail, libro: Ledger, book: ApprovalBook, s: Situaci
 
     Después de cada conversión espera a ver la divisa comprada en el saldo, antes de pagar con ella."""
     libro.require_intact()  # con el libro o su registro tocados a mano, no se mueve dinero
+    control.exige_en_marcha(libro, ronda)  # con el agente en pausa, tampoco
     paradas = set()
     for c in s.plan.conversions:
         # El importe va en la clave: repetir el mismo plan no convierte dos veces, pero si un pago falló
@@ -468,6 +475,7 @@ def motivo_reserva(s: Situacion, ob) -> str:
 def pagar(rail: AirwallexRail, libro: Ledger, s: Situacion, ronda: str, paradas: set[str],
           log: Log = print, book: ApprovalBook | None = None) -> None:
     libro.require_intact()
+    control.exige_en_marcha(libro, ronda)
     # Primero, terminar lo que se quedó a medias en Airwallex (sin crear transferencias nuevas)
     for oid in sorted(s.enviadas):
         entrada = en_camino(libro, f"pay:{ronda}:{oid}")

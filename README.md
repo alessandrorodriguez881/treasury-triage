@@ -29,6 +29,8 @@ Press the sidebar buttons in order and check what you should see:
 | **Approve** both cards | They show as approved by the owner |
 | **4 · Globex pays $18,000** | The agent finds the deposit in Airwallex and matches it to invoice GX-2207. Confidence 75% → 93%. *Only* the SaaS decision changes: defer → pay |
 | **3 · Execute the plan** again | Conversions at the approved quotes, every bill the agent may pay is PAID, **reserve intact** (about $11,200 above the $15,000 floor). Q. Consulting still waits for a person |
+| **Reject** on Q. Consulting's card | The bill leaves the round's plan, with the strongest evidence as the reason (the payee check on Metal: no match). The decision is in the audit trail |
+| **Pause the agent** (sidebar) | Steps 2 and 3 switch off, and the code itself refuses to read email or move money until you press **Resume**. The pause is in the audit trail too |
 
 **Then try another week.** The **What if?** tab runs the same planner on a different week: other balances, bills, customer emails and FX moves, at today's rates. Press **Another scenario**, or change any number, and see which decisions move and why, against the demo's week. The rules don't move: the new supplier always goes to a person, and a conversion above the agent's limit needs one. Nothing in that tab touches Airwallex, Claude or Metal.
 
@@ -52,6 +54,7 @@ Press the sidebar buttons in order and check what you should see:
 8. **Executes and audits.** It books the FX conversions, creates the beneficiaries and sends the supplier transfers (SCHEDULED → SENT → PAID in the sandbox), then confirms the reserve. Every operation goes to a ledger with its `request_id`, so nothing is paid or converted twice. Every change is also appended to an audit trail where each event carries the hash of the one before; `python verificar_auditoria.py` checks the chain and the ledger against it.
 9. **Shows its forecast.** The screen draws the cash path of the next 72 hours with the plan: the band that holds 90% of the 5,000 simulated paths, against the reserve floor. When Globex's email arrives, the band drops towards the floor.
 10. **Checks an unknown account on Metal before a person decides.** See the next section.
+11. **Leaves the owner in charge.** One click pauses the agent: the steps that read email or move money refuse to run, in code, until the owner resumes it. The owner can also reject a bill the agent escalated (here, the new supplier), with its reason. Both are entries in the same ledger, so they are in the hash-chained audit trail and `verificar_auditoria.py` checks them like any payment.
 
 ## On Metal: a payee check before a person decides
 
@@ -199,7 +202,7 @@ In the sidebar:
 
 The same steps exist on the command line: `reiniciar_demo.py`; `ejecutar_plan.py --leer-correo` (without a Claude key it replays the last real Claude run, like the screen); `aprobar.py` to list the cards and `aprobar.py <code>` to approve each one; then `ejecutar_plan.py --deposito-globex`.
 
-Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 147 tests). The engine lives in `motor_comun/`.
+Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 151 tests). The engine lives in `motor_comun/`.
 
 ## Things the sandbox taught us
 
