@@ -143,7 +143,8 @@ def precalentar() -> None:
 
 # ---------- una comprobación ----------
 def _rail() -> MetalRail:
-    return MetalRail(CLAVE_AGENTE if CLAVE_AGENTE.exists() else None, timeout=45, lookups=3,
+    # 10-nov: con 45 s, la herramienta de Metal no respondió a tiempo en 2 de 3 rondas (la red de pruebas iba lenta)
+    return MetalRail(CLAVE_AGENTE if CLAVE_AGENTE.exists() else None, timeout=120, lookups=3,
                      mandate=MANDATO if MANDATO.exists() else None)
 
 

@@ -34,7 +34,7 @@ Press the sidebar buttons in order and check what you should see:
 
 **Then try another week.** The **What if?** tab runs the same planner on a different week: other balances, bills, customer emails and FX moves, at today's rates. Press **Another scenario**, or change any number, and see which decisions move and why, against the demo's week. The rules don't move: the new supplier always goes to a person, and a conversion above the agent's limit needs one. Nothing in that tab touches Airwallex, Claude or Metal.
 
-**Proof it ran on the real sandbox:** [`evidencia/recibo_r20261029-011728.md`](evidencia/recibo_r20261029-011728.md) (29 Oct) and [`evidencia/recibo_r20261106-204646.md`](evidencia/recibo_r20261106-204646.md) (6 Nov, the round recorded for the demo video) list every conversion, transfer and deposit of a real demo round with its Airwallex id. Re-queried from Airwallex, every conversion and transfer is PAID or SETTLED (a failed £0.13 opening sweep is listed too), Globex's deposit is matched to its invoice, and the audit trail is verified.
+**Proof it ran on the real sandbox:** [`evidencia/recibo_r20261029-011728.md`](evidencia/recibo_r20261029-011728.md) (29 Oct), [`evidencia/recibo_r20261106-204646.md`](evidencia/recibo_r20261106-204646.md) (6 Nov) and [`evidencia/recibo_r20261110-155432.md`](evidencia/recibo_r20261110-155432.md) (10 Nov, the round recorded for the demo video, with the owner's rejection and pause) list every conversion, transfer and deposit of a real demo round with its Airwallex id. Re-queried from Airwallex, every conversion and transfer is PAID or SETTLED (the 6 Nov one also lists a failed £0.13 opening sweep), Globex's deposit is matched to its invoice, and the audit trail is verified.
 
 ## What it does
 

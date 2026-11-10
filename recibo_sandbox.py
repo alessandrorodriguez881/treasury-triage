@@ -25,6 +25,11 @@ QUE = {"fx": "FX conversion", "pay": "Supplier payment", "deposit": "Customer de
 
 def fila(rail, e) -> str:
     tipo = e.op_key.split(":", 1)[0]
+    if tipo == "control":  # una decisión del dueño (10-nov): pausa, reanudación o rechazo; no pasa por Airwallex
+        objeto = e.op_key.split(":")[-1] if e.kind == "reject" else ""
+        importe = f"{e.amount:,.2f} {e.currency}" if e.currency else "—"
+        return (f"| Owner {e.kind} {objeto} | {importe} | {e.counterparty} | `—` | `{e.request_id}` | {e.status} | — | "
+                "in the hash-chained audit trail, not an Airwallex call |")
     ahora, detalle = "—", ""
     try:
         if tipo == "fx" and e.provider_id:
@@ -56,7 +61,8 @@ def main() -> int:
         return 1
     ahora = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     lineas = [f"# Airwallex sandbox receipt: demo round `{args.ronda}`", "",
-              f"Every money movement of this demo round, from the agent's ledger, with the id Airwallex gave it. "
+              f"Every money movement of this demo round, from the agent's ledger, with the id Airwallex gave it, "
+              f"and the owner's decisions (pause, reject), which live in the same ledger. "
               f"*Ledger status* is what our ledger recorded; *Airwallex now* is what Airwallex answers when asked "
               f"again (read-only, on {ahora}, by `recibo_sandbox.py`). Failed attempts stay in the ledger: a retry "
               "reuses the request_id, and a new attempt after a confirmed failure gets a new one.", "",
