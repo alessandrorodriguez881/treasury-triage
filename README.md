@@ -225,6 +225,7 @@ Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app an
 
 - **In the product:** Claude (`claude-opus-5-5`) reads supplier invoices and emails and explains the plan, as described above. It never sees API keys and cannot move money.
 - **In development:** built with Claude Code as a coding assistant. The author designed the product, the decision rule and the evaluation, and reviewed and ran every step.
+- **In the demo video:** the narration is a synthetic stock voice (Kokoro-82M, open source), reading our own script.
 
 ## Shared engine
 
