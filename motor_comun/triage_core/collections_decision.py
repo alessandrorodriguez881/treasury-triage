@@ -16,6 +16,7 @@ from .cash_simulation import ExpectedReceipt, simulate
 from .collections_model import CollectionsModel, CustomerProfile
 
 WAIT, REMIND, DISCOUNT, PLAN, ESCALATE = "WAIT", "REMIND", "DISCOUNT", "PLAN", "ESCALATE"
+RULED_OUT = {DISCOUNT: "early-payment discount", PLAN: "payment plan"}  # what a person can say no to
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class Invoice:
     reminded_days_ago: int | None = None  # None = never reminded
     promised: bool = False                # the customer confirmed when they will pay: no chasing
     asked_for_time: bool = False          # the customer asked for more time: a payment plan, never a discount
+    ruled_out: frozenset[str] = frozenset()  # DISCOUNT or PLAN a person rejected for this invoice: plan without it
 
 
 @dataclass(frozen=True)
@@ -102,12 +104,13 @@ def _options(inv: Invoice, policy: ReceivablesPolicy) -> list[str]:
     if inv.promised:
         return [WAIT]
     if inv.asked_for_time and policy.payment_plans:
-        return [WAIT, PLAN]  # who just asked for time is not pressed: no reminder, no money off for paying early
-    out = [WAIT, DISCOUNT]
-    spaced = inv.reminded_days_ago is None or inv.reminded_days_ago >= policy.min_days_between_reminders
-    if spaced and inv.due_day <= policy.remind_from_days_before_due:
-        out.insert(1, REMIND)
-    return out
+        out = [WAIT, PLAN]  # who just asked for time is not pressed: no reminder, no money off for paying early
+    else:
+        out = [WAIT, DISCOUNT]
+        spaced = inv.reminded_days_ago is None or inv.reminded_days_ago >= policy.min_days_between_reminders
+        if spaced and inv.due_day <= policy.remind_from_days_before_due:
+            out.insert(1, REMIND)
+    return [a for a in out if a == WAIT or a not in inv.ruled_out]  # a person said no: the agent plans without it
 
 
 def _receipt(inv: Invoice, profile: CustomerProfile, action: str,
@@ -178,13 +181,17 @@ def plan_collections(invoices: list[Invoice], profiles: dict[str, CustomerProfil
         elif a == DISCOUNT:
             why = (f"{policy.discount_pct:.0%} off (~${policy.discount_pct * inv.amount:,.0f}) if paid within "
                    f"{policy.discount_window_days} days: odds {before:.0%} -> {prof.p_on_time:.0%}")
+        elif inv.ruled_out:
+            why = f"on-time odds {before:.0%}: the agent waits"
         elif inv.promised:
             why = f"the customer confirmed the payment (odds {before:.0%}): no chasing"
         elif safe:
             why = f"on-time odds {before:.0%}: the cash need is covered without pushing this one"
         else:
             why = f"on-time odds {before:.0%}: pushing it would not change the cash risk enough"
-        approval = a == PLAN or (a == DISCOUNT and policy.discount_pct * inv.amount > policy.autonomous_discount_limit)
+        if inv.ruled_out and a != ESCALATE:
+            why = f"{' and '.join(RULED_OUT[x] for x in sorted(inv.ruled_out))} rejected by a person; {why}"
+        approval =a == PLAN or (a == DISCOUNT and policy.discount_pct * inv.amount > policy.autonomous_discount_limit)
         decisions.append(InvoiceDecision(inv.id, a, why, before, prof.p_on_time, round(c, 2), approval))
     notes = [] if safe else [f"no combination keeps the shortfall risk under {policy.max_short_prob:.0%}: the agent "
                              "takes the cheapest plan counting the risk, and a person should look at other cash "

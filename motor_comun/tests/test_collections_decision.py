@@ -77,6 +77,18 @@ def test_a_big_discount_needs_a_person():
     assert d.action == DISCOUNT and d.needs_approval  # 2% of 12,000 = 240 > 150 the agent may give alone
 
 
+def test_what_a_person_rejected_is_off_the_menu_and_the_risk_no_longer_counts_on_it():
+    asked = plan_collections([Invoice("INV-900", "Fabrikam", 12_000, 4)], PROFILES, start_cash=0, needs=PAYROLL)
+    no = plan_collections([Invoice("INV-900", "Fabrikam", 12_000, 4, ruled_out=frozenset({DISCOUNT}))], PROFILES,
+                          start_cash=0, needs=PAYROLL)
+    assert asked.action_of("INV-900") == DISCOUNT and no.action_of("INV-900") == WAIT
+    assert no.p_short > asked.p_short and "rejected by a person" in no.decisions[0].reason
+    plazos = ReceivablesPolicy(payment_plans=True)
+    assert _options(Invoice("A", "Contoso", 1_000, 1, asked_for_time=True, ruled_out=frozenset({PLAN})), plazos) == [WAIT]
+    # waiting can never be ruled out: the menu is never empty
+    assert _options(Invoice("B", "Contoso", 1_000, 1, ruled_out=frozenset({DISCOUNT, WAIT})), plazos) == [WAIT, REMIND]
+
+
 def test_a_customer_reply_changes_the_plan():
     worried = dict(PROFILES)
     worried["Contoso"] = CollectionsModel.apply_signal(PROFILES["Contoso"], SIGNAL_LIKELIHOOD["asks_for_more_time"],
