@@ -233,7 +233,8 @@ def texto(r: dict) -> str:
         return f"Payee check on Metal unavailable ({r.get('note', 'no answer')}). The bill still goes to a person."
     que = RESULTADOS[r["result"]].format(payee=r.get("payee"), name_on_record=r.get("name_on_record"))
     resultado = r["result"].replace("_", " ")
-    return f"Payee check on Metal: {resultado}. {que[:1].upper()}{que[1:]}. Paid {r.get('price')} *USDZ"
+    return (f"Payee check on Metal (our demo service): {resultado}. {que[:1].upper()}{que[1:]}. "
+            f"Paid {r.get('price')} *USDZ")
 
 
 def texto_tarjeta(r: dict) -> str:

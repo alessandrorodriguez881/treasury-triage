@@ -189,7 +189,8 @@ def _plan(s: Semana, rates: dict[str, float], accion: dict, estilo: dict, dinero
     lista = cambios(base, plan)
     quien = {o.id: o.payee for o in OBLIGATIONS}
     if s == esta_semana():
-        st.caption(":material/info: This is the demo's week, the one every scenario is compared with. Press "
+        st.caption(":material/info: This is the demo's week as it starts, before the inbox is read: the one every scenario is "
+                   "compared with. Press "
                    "**Another scenario**, or change any number.")
     elif lista:
         lineas = [f"- **{i[3:]} conversion:** {QUIEN[a]} → {QUIEN[b]}" if i.startswith("FX ")
@@ -218,5 +219,5 @@ def pintar(rates: dict[str, float], accion: dict, estilo: dict, dinero: Callable
     with salida:
         _plan(semana, rates, accion, estilo, dinero)
     origen = esta_semana() if semana.semilla == 0 else al_azar(semana.semilla)
-    rotulo.caption(("The demo's week" if semana.semilla == 0 else f"Scenario {semana.semilla}, drawn at random")
+    rotulo.caption(("The demo's week, before the inbox" if semana.semilla == 0 else f"Scenario {semana.semilla}, drawn at random")
                    + (", changed by you" if semana != origen else ""))

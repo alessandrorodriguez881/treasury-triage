@@ -90,7 +90,7 @@ def test_the_replay_is_a_real_recorded_payment_and_says_so(tmp_path, monkeypatch
     assert "replay of a real Metal testnet payment" in mensajes[0] and "not registered to Q. Consulting" in mensajes[0]
     assert m.comprobaciones_de(RONDA, tmp_path)["NEW-5"] == r
     linea = m.texto_tarjeta(r)
-    assert linea.startswith(":material/policy: Payee check on Metal: no match. The account in this invoice is not "
+    assert linea.startswith(":material/policy: Payee check on Metal (our demo service): no match. The account in this invoice is not "
                             "registered to Q. Consulting. Paid 0.25 \\*USDZ")
     assert "replay of a real Metal testnet payment (2026-11-01)" in linea
     assert linea.endswith(f"[view on Metal explorer](https://testnet.metalntwx.com/tx/{TX})")

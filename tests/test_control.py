@@ -81,3 +81,15 @@ def test_controls_are_never_mistaken_for_money(abierto, tmp_path):
     s = situacion(rail, libro, RONDA, [], False)
     assert not s.pagadas and not s.enviadas  # no control entry counts as a payment or a transfer in flight
     assert all(e.op_key.startswith(f"control:{RONDA}:") for e in libro.entries)
+
+
+def test_a_decision_on_a_card_goes_to_the_audit_trail(tmp_path):
+    """Revisión de ejecución (11-nov): el sí o el no a una tarjeta también va en la auditoría encadenada."""
+    from triage_core.ledger import Ledger
+    libro = Ledger(tmp_path / "ledger.json")
+    assert control.decision_en_tarjeta(libro, "r1", "ab" * 16, "Buy 7,814.17 EUR for 8,828.37 USD", 8828.37, "USD", True)
+    assert not control.decision_en_tarjeta(libro, "r1", "ab" * 16, "Buy 7,814.17 EUR", 8828.37, "USD", True)  # una vez
+    assert control.decision_en_tarjeta(libro, "r1", "cd" * 16, "Buy 6,002.24 GBP for 8,114.61 USD", 8114.61, "USD", False)
+    assert [(e.kind, e.status) for e in libro.entries] == [("approve", "APPROVED"), ("decline", "REJECTED")]
+    assert libro.verify().ok
+    assert control.rechazados(libro, "r1") == {} and not control.en_pausa(libro, "r1")  # no es un rechazo de un pago

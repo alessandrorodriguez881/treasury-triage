@@ -55,13 +55,20 @@ def titulo(req: ApprovalRequest) -> str:
     return f"Buy {compra} for {importe}"
 
 
+def _en_pantalla() -> bool:
+    """¿Lo pide la pantalla? Allí cada visitante tiene su carpeta, que `aprobar.py` no ve."""
+    from modo import _visitante
+    return _visitante() is not None
+
+
 def tarjeta(fp: str, req: ApprovalRequest, quote: dict | None = None) -> str:
     lineas = [f"🟡 APPROVAL NEEDED [{fp[:8]}]", f"   {titulo(req)}"]
     if quote:
         lineas[-1] += f" (rate {quote['client_rate']} locked until {_hasta(quote).astimezone():%H:%M})"
     lineas.append(f"   Why: {req.reason}")
     lineas += [f"   Evidence: {e}" for e in req.evidence[2:]]
-    lineas.append(f"   To approve:  python aprobar.py {fp[:8]}   (or --rechazar)")
+    lineas.append("   Approve or reject it on its card." if _en_pantalla()
+                  else f"   To approve:  python aprobar.py {fp[:8]}   (or --rechazar)")
     return "\n".join(lineas)
 
 

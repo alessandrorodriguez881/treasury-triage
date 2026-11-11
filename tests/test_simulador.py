@@ -129,3 +129,38 @@ def test_claudes_recorded_briefing_is_hidden_when_the_numbers_changed(abierto, t
     _grabar(abierto, libro, RONDA)
     repetida = leer_correos(abierto, libro, RONDA, True, con_claude=False, repetir=True)
     assert repetida.resumen == demo.NO_CUADRA
+
+
+def test_executing_before_the_money_arrives_never_goes_below_the_reserve(abierto, tmp_path):
+    """Revisión de ejecución (11-nov): «3» antes que «2». En el sandbox el tiempo no corre, y lo que vence en 1-3 días
+    se pagaría ya, antes de los cobros con los que cuenta el plan. Lo que dejaría la caja bajo la reserva espera."""
+    rail, libro, book = abierto, Ledger(tmp_path / "ledger.json"), ApprovalBook.load(tmp_path / "aprobaciones.json")
+    dijo = []
+    s = situacion(rail, libro, RONDA, [], False, ())  # sin leer la bandeja
+    pagar(rail, libro, s, RONDA, convertir(rail, libro, book, s, RONDA, nada, nada), dijo.append, book)
+    ahora = situacion(rail, libro, RONDA, [], False, ())
+    assert sum(a * ahora.rates[d] for d, a in ahora.saldos.items()) >= TreasuryPolicy().reserve_floor
+    assert "SHIP-1" in ahora.pagadas  # el flete, que para la empresa, sí se paga
+    assert any("waits: paying it today would take cash below" in m for m in dijo)
+
+
+def test_after_approving_and_before_globex_pays_it_keeps_the_reserve(abierto, tmp_path):
+    """La otra forma de verlo: «2», «3», aprobar las tarjetas y «3» otra vez antes de que pague Globex."""
+    rail, libro, book = abierto, Ledger(tmp_path / "ledger.json"), ApprovalBook.load(tmp_path / "aprobaciones.json")
+    lectura = leer_correos(rail, libro, RONDA, False, con_claude=False)
+    s = situacion(rail, libro, RONDA, lectura.senales, False, lectura.facturas)
+    pagar(rail, libro, s, RONDA, convertir(rail, libro, book, s, RONDA, nada, nada), nada, book)
+    for fp in list(book.pending):
+        book.approve(fp, "owner")
+    s = situacion(rail, libro, RONDA, lectura.senales, False, lectura.facturas)
+    pagar(rail, libro, s, RONDA, convertir(rail, libro, book, s, RONDA, nada, nada), nada, book)
+    ahora = situacion(rail, libro, RONDA, lectura.senales, False, lectura.facturas)
+    assert sum(a * ahora.rates[d] for d, a in ahora.saldos.items()) >= TreasuryPolicy().reserve_floor
+
+
+def test_the_recorded_claude_briefing_shows_in_the_demos_week(abierto, tmp_path):
+    """Revisión de ejecución (11-nov): con 39.000 $ de partida (la grabación es de 38.000) la repetición escondía el
+    resumen de Claude. Cuenta lo que dice el resumen (su huella), no los saldos."""
+    lectura = leer_correos(abierto, Ledger(tmp_path / "ledger.json"), RONDA, False, con_claude=False, repetir=True)
+    assert lectura.pasos[0].startswith("Replay of a real Claude run")
+    assert lectura.resumen != demo.NO_CUADRA

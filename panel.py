@@ -61,7 +61,7 @@ def claude_disponible() -> bool:
 
 def dinero(cantidad: float, divisa: str = BASE, decimales: int = 2) -> str:
     cantidad = 0.0 if abs(cantidad) < 0.005 else cantidad  # sin «-0» por los céntimos de redondeo
-    return f"{SIMBOLO.get(divisa, '')}{cantidad:,.{decimales}f}"
+    return f"{'-' if cantidad < 0 else ''}{SIMBOLO.get(divisa, '')}{abs(cantidad):,.{decimales}f}"  # -$4,884
 
 
 def comprobar_auditoria() -> str:
@@ -182,7 +182,7 @@ def leer(log, con_claude: bool) -> None:
                               "por_aprobar": sum(c.needs_approval for c in despues.plan.conversions)}
     st.session_state.cambios = None  # si Globex ya pagó, su aviso describía el plan de antes de leer la bandeja
     log(f"Inbox read: {len(lectura.facturas)} invoice(s) and {len(lectura.senales)} signal(s) accepted")
-    comprobar_beneficiarios(ronda, lectura.facturas, log)  # Metal: prueba para quien decide; nunca para la demo
+    comprobar_beneficiarios(ronda, lectura.facturas, log, omitir=set(control.rechazados(libro, ronda)))  # Metal: prueba para quien decide; nunca para la demo
 
 
 def ejecutar(log) -> None:
@@ -209,6 +209,7 @@ def decidir(log, fp: str, aprobar: bool) -> None:
         return
     req = book.pending[fp]
     (book.approve if aprobar else book.reject)(fp, "owner")
+    control.decision_en_tarjeta(libro, ronda, fp, titulo(req), req.amount, req.currency, aprobar)  # en la auditoría
     log(f"{'Approved' if aprobar else 'Rejected'} by the owner: {titulo(req)}")
 
 
@@ -346,7 +347,9 @@ QUE_DICE = {"confirms_payment": "{} confirmed its payment", "asks_for_more_time"
 if st.session_state.leido and not st.session_state.cambios:  # lo que cambió al leer la bandeja, hasta que paga Globex
     l = st.session_state.leido
     quien = {o.id: o.payee for o in s.obligaciones}
-    dichos = [QUE_DICE.get(tipo, "{}: " + tipo).format(cliente) for cliente, tipo in l["senales"]]
+    # Si Globex ya pagó (paso 4 antes del 2), su correo de «pagaré tarde» ya no es lo que pasa
+    dichos = [("{} wrote it would pay late, but its payment has already landed" if globex_pagado and cliente == "Globex"
+               else QUE_DICE.get(tipo, "{}: " + tipo)).format(cliente) for cliente, tipo in l["senales"]]
     texto = (f"{', '.join(dichos[:-1]) + ' and ' + dichos[-1] if len(dichos) > 1 else ''.join(dichos) or 'Nothing new'}"
              f", so confidence goes {l['antes']:.0%} → {l['despues']:.0%} (usual {usual:.0%}).")
     if l["fx_despues"] != l["fx_antes"]:
@@ -446,8 +449,13 @@ with hoy:
             st.badge(f"Paid · {len(s.pagadas)}", icon=":material/verified:", color="green")
         if s.rechazadas:
             st.badge(f"Rejected by you · {len(s.rechazadas)}", icon=":material/block:", color="red")
+        divisa_de = {o.id: o.currency for o in s.pendientes}
+        sin_cambio = [d for d in s.plan.decisions  # conversiones que una persona rechazó en esta ronda
+                      if d.action == CONVERT_AND_FUND and divisa_de.get(d.obligation_id) in rechazadas]
+        if sin_cambio:
+            st.badge(f"Conversion rejected · {len(sin_cambio)}", icon=":material/block:", color="red")
         for accion in (FUND, CONVERT_AND_FUND, DEFER, ESCALATE):
-            n = sum(d.action == accion for d in s.plan.decisions)
+            n = sum(d.action == accion and d not in sin_cambio for d in s.plan.decisions)
             if n:
                 color, icono = ESTILO[accion]
                 st.badge(f"{ACCION[accion]} · {n}", icon=icono, color=color)
@@ -490,6 +498,10 @@ with hoy:
                 st.badge("Rejected by you", icon=":material/block:", color="red")
                 st.caption(md(f"Reason: {s.rechazadas[o.id]}. Out of this round's plan; the decision is in the "
                               "audit trail."))
+            elif d and d.action == CONVERT_AND_FUND and o.currency in rechazadas:
+                st.badge("Conversion rejected by you", icon=":material/block:", color="red")
+                st.caption(f"You rejected the {o.currency} conversion, so this bill is not paid in this round. "
+                           "The decision is on its approval card and in the audit trail.")
             elif d:
                 color, icono = ESTILO[d.action]
                 st.badge(ACCION[d.action], icon=icono, color=color)

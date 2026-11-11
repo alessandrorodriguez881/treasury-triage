@@ -15,6 +15,7 @@ from __future__ import annotations
 from triage_core.ledger import Ledger
 
 PAUSA, REANUDA, RECHAZO = "pause", "resume", "reject"
+APRUEBA, NO_APRUEBA = "approve", "decline"  # el sí o el no a una tarjeta (una conversión o un pago desde la reserva)
 DUENO = "owner"
 
 
@@ -68,6 +69,18 @@ def rechazar(libro: Ledger, ronda: str, ob, motivo: str) -> bool:
     if libro.attempts(clave):
         return False
     _apunta(libro, ronda, RECHAZO, ob.amount, ob.currency, f"{ob.payee} · {motivo}", "REJECTED", clave)
+    return True
+
+
+def decision_en_tarjeta(libro: Ledger, ronda: str, fp: str, que: str, importe: float, divisa: str,
+                        aprobada: bool) -> bool:
+    """El sí o el no del dueño a una tarjeta de aprobación, también en la auditoría encadenada (11-nov, revisión de
+    ejecución: hasta entonces solo quedaba en `aprobaciones.json`). Una vez por tarjeta. Devuelve si ha cambiado algo."""
+    clave = f"control:{ronda}:card:{fp[:16]}"
+    if libro.attempts(clave):
+        return False
+    _apunta(libro, ronda, APRUEBA if aprobada else NO_APRUEBA, importe, divisa, f"{DUENO} · {que}",
+            "APPROVED" if aprobada else "REJECTED", clave)
     return True
 
 

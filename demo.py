@@ -194,7 +194,7 @@ def repetir_grabacion(hoy: date, recalcular: Callable[[list, list], dict]) -> Le
     bandeja.recompute_plan()
     return Lectura(bandeja.senales, [f"Replay of a real Claude run on {g['date']} (no Claude key here): the same "
                                      "tool calls, checked again by code"] + bandeja.registro,
-                   g["briefing"] if bandeja.plan == g.get("plan") else NO_CUADRA, bandeja.facturas, bandeja.plan)
+                   g["briefing"] if huella(bandeja.plan) == huella(g.get("plan")) else NO_CUADRA, bandeja.facturas, bandeja.plan)
 
 
 def leer_correos(rail: AirwallexRail, libro: Ledger, ronda: str, globex_pagado: bool, con_claude: bool,
@@ -230,7 +230,7 @@ def leer_correos(rail: AirwallexRail, libro: Ledger, ronda: str, globex_pagado: 
     return lectura
 
 
-def comprobar_beneficiarios(ronda: str, facturas, log: Log = print, carpeta=None) -> list[dict]:
+def comprobar_beneficiarios(ronda: str, facturas, log: Log = print, carpeta=None, omitir=frozenset()) -> list[dict]:
     """Paso 2, después de leer las facturas: cada factura que pide pagar a una cuenta que no está en la ficha de su
     proveedor (en la demo, la de Q. Consulting) se comprueba en Metal, como la «Verification of Payee» de la UE.
     El agente paga 0,25 *USDZ por x402 y el resultado queda como prueba para la persona que decide
@@ -245,6 +245,9 @@ def comprobar_beneficiarios(ronda: str, facturas, log: Log = print, carpeta=None
     hechas = m.comprobaciones_de(ronda, carpeta)
     resultados = []
     for f, payee in m.por_comprobar(facturas):
+        if f.obligation_id in omitir:  # el dueño ya lo rechazó: no se paga una comprobación que ya no decide nada
+            log(f"{f.obligation_id}: no payee check on Metal, you already rejected it")
+            continue
         r = hechas.get(f.obligation_id)
         if r is None or r.get("mode") not in ("real", "replay"):
             try:
@@ -472,10 +475,17 @@ def motivo_reserva(s: Situacion, ob) -> str:
             f"72 h, never below zero")
 
 
+def caja_en_usd(rail: AirwallexRail, rates: dict[str, float]) -> float:
+    """Todo el saldo de Airwallex en dólares, como la cifra «Above reserve» de la pantalla (más el suelo)."""
+    actuales = rail.balances()
+    return sum(float(actuales.get(d, {}).get("available_amount", 0)) * rates[d] for d in DIVISAS)
+
+
 def pagar(rail: AirwallexRail, libro: Ledger, s: Situacion, ronda: str, paradas: set[str],
           log: Log = print, book: ApprovalBook | None = None) -> None:
     libro.require_intact()
     control.exige_en_marcha(libro, ronda)
+    floor = TreasuryPolicy().reserve_floor
     # Primero, terminar lo que se quedó a medias en Airwallex (sin crear transferencias nuevas)
     for oid in sorted(s.enviadas):
         entrada = en_camino(libro, f"pay:{ronda}:{oid}")
@@ -487,7 +497,10 @@ def pagar(rail: AirwallexRail, libro: Ledger, s: Situacion, ronda: str, paradas:
             continue
         ob = next(o for o in s.pendientes if o.id == d.obligation_id)
         if ob.currency in paradas:
-            log(f"{ob.id} ({ob.payee}) waits for the {ob.currency} conversion")
+            if book is not None and rechazo_de_una_persona(book, ob.currency, ronda):
+                log(f"{ob.id} ({ob.payee}) is not paid this round: a person rejected the {ob.currency} conversion")
+            else:
+                log(f"{ob.id} ({ob.payee}) waits for the {ob.currency} conversion")
             continue
         if s.plan.uses_reserve and ob.stops_operations:  # sale de la reserva: nunca sin una persona
             estado, fp = (aprobacion_de_reserva(book, ob.payee, ob.amount, ob.currency, motivo_reserva(s, ob), ronda,
@@ -497,6 +510,12 @@ def pagar(rail: AirwallexRail, libro: Ledger, s: Situacion, ronda: str, paradas:
                     + ("not paid (rejected, or no approval book)" if estado == RECHAZADA else f"waits for approval [{fp[:8]}]"))
                 continue
             log(f"{ob.id}: paying from the reserve, approved by a person")
+        elif caja_en_usd(rail, s.rates) - ob.amount * s.rates[ob.currency] < floor:
+            # 11-nov (revisión de ejecución): en el sandbox el tiempo no corre y «Execute» paga ya lo que vence en 1-3
+            # días, pero el plan cuenta con cobros que llegan antes. Si pagarlo hoy deja la caja bajo la reserva, espera.
+            log(f"{ob.id} ({ob.payee}) waits: paying it today would take cash below the {floor:,.0f} {BASE} reserve "
+                "before the money the plan expects arrives. It is paid once that money lands")
+            continue
         try:
             entrada = libro.begin(f"pay:{ronda}:{ob.id}", "transfer", ob.amount, ob.currency, ob.payee)
         except DuplicatePaymentError:
