@@ -11,14 +11,14 @@ A founder of a small multi-currency business has five bills due in the next 72 h
 
 ![Treasury Triage after steps 2 and 3: Claude read the inbox, so forecast confidence fell from 87% to 75% and the agent's FX limit from $10,000 to $2,500; the freight bill is paid and two FX conversions wait for the owner, each bound to an exact Airwallex quote, with the reason and the emails behind it](docs/pantalla.jpg)
 
-## For judges: try it in 2 minutes, no keys needed
+## For judges: try it without keys
 
 ```bash
 pip install -r requirements.txt
 python -m streamlit run panel.py
 ```
 
-Without a `.env`, the app runs in **demo mode**: a built-in simulator (`simulador_airwallex.py`) answers the same Airwallex REST calls, behind the same wrapper, with the rates and fees we measured on the real sandbox. Claude's step **replays a real Claude run** (`grabacion_claude.json`): the same tool calls, checked again by code. With sandbox keys in `.env`, the same buttons move money in the Airwallex sandbox and Claude reads live.
+Then open http://localhost:8501. Without a `.env`, the app runs in **demo mode**: a built-in simulator (`simulador_airwallex.py`) answers the same Airwallex REST calls, behind the same wrapper, with the rates and fees we measured on the real sandbox. Claude's step **replays a real Claude run** (`grabacion_claude.json`): the same tool calls, checked again by code. With sandbox keys in `.env`, the same buttons move money in the Airwallex sandbox and Claude reads live.
 
 Press the sidebar buttons in order and check what you should see:
 
@@ -26,11 +26,12 @@ Press the sidebar buttons in order and check what you should see:
 |---|---|
 | **2 · Claude reads the inbox** | Four invoices match; Q. Consulting's asks for an account on no supplier file, and its card shows a **payee check paid on Metal: no match** (see "On Metal" below). Globex asks for more time; the fake "CFO" email is ignored. Confidence **75%, 6 points below usual**, so the agent's FX limit drops from $10,000 to $2,500 |
 | **3 · Execute the plan** | Freight paid (PAID). Both conversions now need a person: two approval cards with a locked quote. SaaS deferred, new supplier escalated |
-| **Approve** both cards | They show as approved by the owner |
+| **Approve** both cards | They show as approved by the owner, and each approval goes into the audit trail |
 | **4 · Globex pays $18,000** | The agent finds the deposit in Airwallex and matches it to invoice GX-2207. Confidence 75% → 93%. *Only* the SaaS decision changes: defer → pay |
-| **3 · Execute the plan** again | Conversions at the approved quotes, every bill the agent may pay is PAID, **reserve intact** (about $11,200 above the $15,000 floor). Q. Consulting still waits for a person |
+| **3 · Execute the plan** again | Conversions at the approved quotes, every bill the agent may pay is PAID, **reserve intact** (about $11,300 above the $15,000 floor). Q. Consulting still waits for a person |
 | **Reject** on Q. Consulting's card | The bill leaves the round's plan, with the strongest evidence as the reason (the payee check on Metal: no match). The decision is in the audit trail |
 | **Pause the agent** (sidebar) | Steps 2 and 3 switch off, and the code itself refuses to read email or move money until you press **Resume**. The pause is in the audit trail too |
+| **3 · Execute the plan** before Globex pays (out of order) | What would take cash below the $15,000 reserve waits, and the log says why: the plan counts on money that has not arrived yet |
 
 **Then try another week.** The **What if?** tab runs the same planner on a different week: other balances, bills, customer emails and FX moves, at today's rates. Press **Another scenario**, or change any number, and see which decisions move and why, against the demo's week. The rules don't move: the new supplier always goes to a person, and a conversion above the agent's limit needs one. Nothing in that tab touches Airwallex, Claude or Metal.
 
@@ -49,7 +50,7 @@ Press the sidebar buttons in order and check what you should see:
    **It never stops the business on its own.** If keeping the reserve would mean deferring a bill that halts operations, the plan pays just that bill from the reserve, as long as cash stays above zero, and **a person approves that payment** first.
 4. **Reads supplier invoices and the inbox with Claude.** Claude records what each supplier invoice says (amount, currency, due date, bank account) and what customer emails say about payment timing. Code checks every value before it counts, and **a bill whose invoice does not match the payables list or the bank details on file goes to a person**.
 5. **Ties its autonomy to forecast confidence.** In a normal week it converts up to $10,000 alone. When this week looks worse than usual for the portfolio (5+ points below the usual on-time rate), the limit drops and **the same conversion needs a person**.
-6. **Binds approvals to an Airwallex quote.** The approval card shows the exact USD cost of a locked rate, and the conversion runs at that quote. A new email, a new amount or an expired quote means a new approval.
+6. **Binds approvals to an Airwallex quote.** The approval card shows the exact USD cost of a locked rate, and the conversion runs at that quote. A new amount or an expired quote means a new approval, and so does a new email while a person is still needed. If the news means the agent no longer needs one, it keeps the exact cost you approved.
 7. **Reconciles, then re-plans.** It does not take a payment for granted: it reads the deposits in Airwallex (`/api/v1/deposits`) and matches each one to an invoice it expects, by amount, currency and the customer's name or invoice number. Each deposit counts once. Only then does it reopen the decisions the new cash changes, and it shows the diff.
 8. **Executes and audits.** It books the FX conversions, creates the beneficiaries and sends the supplier transfers (SCHEDULED → SENT → PAID in the sandbox), then confirms the reserve. Every operation goes to a ledger with its `request_id`, so nothing is paid or converted twice. Every change is also appended to an audit trail where each event carries the hash of the one before; `python verificar_auditoria.py` checks the chain and the ledger against it.
 9. **Shows its forecast.** The screen draws the cash path of the next 72 hours with the plan: the band that holds 90% of the 5,000 simulated paths, against the reserve floor. When Globex's email arrives, the band drops towards the floor.
@@ -105,7 +106,7 @@ The demo has two traps:
 | An invoice asks to pay a new bank account | The bill goes to a person; payments only go to the beneficiary on file | `test_changed_bank_details_send_the_bill_to_a_person` |
 | Claude "reads" a value that is not on the invoice | Rejected by code; the reason goes back to Claude | `test_an_invoice_value_that_is_not_on_the_invoice_is_rejected` |
 | An email from someone else's domain, or an invented quote | The signal does not count | `test_a_signal_counts_only_with_verbatim_evidence_from_the_customers_own_domain` |
-| The email changes after an approval | The old approval no longer matches: a new card | `test_other_amount_or_a_new_signal_needs_a_new_approval` |
+| A new email after an approval, while a person is still needed | The old approval no longer matches: a new card | `test_other_amount_or_a_new_signal_needs_a_new_approval` |
 | The locked quote expires | A new quote and a new approval; an expired card is not a "no" | `test_expired_quote_needs_a_new_approval`, `test_an_expired_pending_card_is_not_a_no` |
 | A pending card is treated as approved | Never: only a granted approval converts | `test_a_pending_card_is_never_used_as_an_approval` |
 | The response to a conversion is lost | The wrapper finds it by `request_id` instead of converting again | `test_conversion_lost_response_returns_the_original_instead_of_converting_again` |
@@ -134,8 +135,8 @@ Customers' true on-time odds were hidden from all of them, and the hypotheses we
 ![Weeks the business stopped, weeks below the reserve and cost per week: Treasury Triage and the same three simpler agents in every column](resultados/resumen_1000_semanas.png)
 
 On the latest two fresh seeds (2031 and 2032):
-- **The business never stopped.** The same engine that never touches the reserve stopped it in 12-13% of weeks.
-- **About $940 a week cheaper** than the no-forecast agent, and **$530-$570 cheaper** than never touching the reserve. Paying in order costs less ($105-$112), but only because going below the reserve has no price in this cost.
+- **The business never stopped** (the simulated owner approves every use of the reserve). The same engine that never touches the reserve stopped it in 12-13% of weeks.
+- **About $940 a week cheaper** than the no-forecast agent, and **$530-$570 cheaper** than never touching the reserve. Paying in order costs less ($105-$112), but only because going below the reserve has no price in this cost. The cost counts $5,000 for each week the business stops: that is $760-$800 of the no-forecast agent's $1,258-$1,299 a week.
 - **Cash never went below zero.** It went below the reserve in 5-7% of weeks, against 14% when paying in order. The agent only plans to use the reserve with a person's approval, to pay the bill that would stop the business; the other dips (15% of them) were unplanned, within the risk the plan accepts. The agent knows that risk: it predicted 5.0-6.2% and it happened in 5.4-6.6% of weeks.
 - **The forecast stays within 6 points** of what really happened in every bucket (on the seeds that tested learning: it was 11 points off without learning, and it closes 56-80% of the gap to a forecast that knew the hidden truth).
 - With "worse than usual" approvals, it **asks a person for FX in 1 week in 4 or 5**, and those weeks really are riskier: 63-74% have a late payment, against 47-48% of the others.
@@ -181,7 +182,7 @@ Full write-up and code: `motor_comun/evaluacion_real/` (`RESULTADOS.md` in Spani
 - **Real Metal testnet payment:** the payee check, 0.25 \*USDZ over x402 (`rail_metal.py`, through the `metal-agent` CLI and Metal's facilitator). The service it pays is a demo we run locally, with a synthetic registry.
 - **Synthetic:** the business, its customers' payment histories, the supplier invoices and the emails.
 - **Real data, for the payment model:** it was also checked on 4,995 real business invoices from a public dataset (see the Evidence section).
-- **Demo mode (no keys):** `simulador_airwallex.py` plays the sandbox under the same wrapper, and Claude's step replays a recorded real run (recorded on the simulator, from the demo's starting balances). Claude's briefing is shown only if the plan on screen is the one Claude saw; if not (say, a customer already paid), the screen says so instead. `TT_GRABAR=1` with a Claude key records a new run. The screen says so in a banner. It keeps its own ledger (`data_simulada/`), apart from the real sandbox's.
+- **Demo mode (no keys):** `simulador_airwallex.py` plays the sandbox under the same wrapper, and Claude's step replays a recorded real run (recorded on the simulator, from the demo's starting balances). Claude's briefing is shown only if what it talks about (confidence, decisions and the currencies to buy) is still what the screen shows; if not (say, a customer already paid), the screen says so instead. `TT_GRABAR=1` with a Claude key records a new run. The screen says so in a banner. It keeps its own ledger (`data_simulada/`), apart from the real sandbox's.
 
 ## Run it
 
@@ -202,7 +203,7 @@ In the sidebar:
 
 The same steps exist on the command line: `reiniciar_demo.py`; `ejecutar_plan.py --leer-correo` (without a Claude key it replays the last real Claude run, like the screen); `aprobar.py` to list the cards and `aprobar.py <code>` to approve each one; then `ejecutar_plan.py --deposito-globex`.
 
-Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 151 tests). The engine lives in `motor_comun/`.
+Tests (offline, no keys): `python -m pytest tests motor_comun/tests` (the app and the shared engine, 155 tests). The engine lives in `motor_comun/`.
 
 ## Things the sandbox taught us
 
