@@ -7,7 +7,7 @@ A founder of a small multi-currency business has five bills due in the next 72 h
 **What makes it different**
 - **A forecast with odds, checked on real data.** Each customer's chance of paying on time is learned from its history; on 4,995 real business invoices it was right to within 2.6 points on average.
 - **Autonomy that follows the forecast.** When this week's forecast is less reliable than usual, the agent cuts its own FX limit, and the same conversion now needs the owner.
-- **Measured, not just demoed.** 1,000 simulated weeks against five other agents, with the hypotheses written before running: the business never stopped, and it cost about $940 a week less than rules with no forecast.
+- **Measured, not just demoed.** 1,000 simulated weeks against five other agents, with the hypotheses written before running. It never stopped the business and went below the reserve in 5-7% of weeks, against 14% when paying bills in order, which only looks cheaper because its cost does not price going below the reserve. Rules with no forecast kept the reserve but stopped the business in 15% of weeks.
 
 ![Treasury Triage after steps 2 and 3: Claude read the inbox, so forecast confidence fell from 87% to 75% and the agent's FX limit from $10,000 to $2,500; the freight bill is paid and two FX conversions wait for the owner, each bound to an exact Airwallex quote, with the reason and the emails behind it](docs/pantalla.jpg)
 
