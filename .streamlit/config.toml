@@ -1,34 +1,45 @@
-# Tema basado en la plantilla «shadcn» de Streamlit (como Receivables Copilot), con un acento propio (índigo)
+# Tema propio de Treasury Triage (12-nov): que no se parezca a Receivables Copilot (PayPal), que usa la plantilla
+# «shadcn» toda blanca con Inter. Aquí: barra lateral azul marino, letra IBM Plex (cifras y texto) con títulos en
+# Space Grotesk, esquinas más rectas y letra un poco mayor para que se lea en el vídeo.
 [theme]
 base = "light"
-primaryColor = "#4338CA"
+primaryColor = "#4F46E5"
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#FAFAFA"
-codeBackgroundColor = "#F4F4F5"
-textColor = "#09090B"
+secondaryBackgroundColor = "#F2F5FA"
+codeBackgroundColor = "#EEF2F8"
+textColor = "#0B1324"
 linkColor = "#4338CA"
-borderColor = "#E4E4E7"
+borderColor = "#D9E1EC"
 showWidgetBorder = true
-showSidebarBorder = true
-baseRadius = "8px"
-buttonRadius = "8px"
-font = "'Inter':https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
-baseFontSize = 14
-headingFontWeights = [600, 600, 600, 600, 600, 600]
-grayColor = "#71717A"
+showSidebarBorder = false
+baseRadius = "4px"
+buttonRadius = "4px"
+font = "'IBM Plex Sans':https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+headingFont = "'Space Grotesk':https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"
+codeFont = "'IBM Plex Mono':https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
+baseFontSize = 15
+headingFontSizes = ["2.2rem", "1.6rem", "1.3rem", "1.1rem", "1rem", "0.9rem"]
+headingFontWeights = [700, 600, 600, 600, 600, 600]
+metricValueFontSize = "1.6rem"
+metricValueFontWeight = 600
+grayColor = "#64748B"
 blueColor = "#2563EB"
-greenColor = "#16A34A"
+greenColor = "#0F9D58"
 redColor = "#DC2626"
-orangeColor = "#EA580C"
-dataframeBorderColor = "#E4E4E7"
-dataframeHeaderBackgroundColor = "#FAFAFA"
+orangeColor = "#D97706"
+violetColor = "#4F46E5"
+chartCategoricalColors = ["#4F46E5", "#0EA5E9", "#D97706", "#0F9D58", "#DC2626", "#64748B"]
+dataframeBorderColor = "#D9E1EC"
+dataframeHeaderBackgroundColor = "#F2F5FA"
 
 [theme.sidebar]
-backgroundColor = "#FAFAFA"
-secondaryBackgroundColor = "#F4F4F5"
-borderColor = "#E4E4E7"
-primaryColor = "#4338CA"
+backgroundColor = "#0B1B3F"
+secondaryBackgroundColor = "#14275A"
+codeBackgroundColor = "#14275A"
+textColor = "#E7ECF7"
+borderColor = "#2A3E6E"
+primaryColor = "#6366F1"
+linkColor = "#A5B4FC"
 
 [server]
 headless = true

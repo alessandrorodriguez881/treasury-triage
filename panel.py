@@ -244,7 +244,7 @@ def resaltar(*pasos) -> str:
 
 
 with st.sidebar:
-    st.header("Run the demo")
+    st.header("Demo controls")
     st.caption(f"Round `{ronda}` · " + ("simulated Airwallex sandbox · no keys" if SIMULADO
                                          else "Airwallex sandbox · no real money"))
     if st.button("1 · Reset sandbox", icon=":material/restart_alt:", type=resaltar(None), width="stretch"):
@@ -285,10 +285,31 @@ with st.sidebar:
             else:
                 st.text(linea)
 
-# ---------- cabecera y cifras clave ----------
-st.title("Treasury Triage")
-st.caption("A treasury agent that knows how much to trust its own cash forecast · "
-           + ("demo mode" if SIMULADO else "live on the Airwallex sandbox"))
+# ---------- cabecera: la marca, dónde corre y los cinco pasos del kit ----------
+# 12-nov: cabecera propia (antes era la misma que la de Receivables Copilot) y los pasos del Kit 01 a la vista, con el
+# del momento marcado: el jurado ve en qué parte del reto está cada pantalla
+PASOS_KIT = ("Goal", "Plan", "New information", "Revised decision", "Result")
+EN_QUE_PASO = {"2": 1, "aprobar": 3, "3": 3, "4": 4, "3 otra vez": 3, None: 5}  # lo que toca → paso del kit en pantalla
+MIENTRAS = {lee: 2, "Executing the plan on Airwallex": 4, "Globex pays": 2, "Resetting the sandbox": 1}
+if toca != "reanudar":  # en pausa se queda el paso de antes de pausar
+    st.session_state.paso_kit = EN_QUE_PASO.get(toca, 1)
+actual = MIENTRAS.get(pulsado[0], 1) if pulsado else st.session_state.get("paso_kit", 1)
+with st.container(horizontal=True, vertical_alignment="center", gap="medium"):
+    st.title("Treasury Triage", width="content")
+    st.badge("Kit 01 · Adaptive Treasury Controller", icon=":material/account_balance:", color="violet")
+    st.badge("Simulated Airwallex sandbox · no keys" if SIMULADO else "Live on the Airwallex sandbox",
+             icon=":material/science:" if SIMULADO else ":material/cell_tower:", color="gray" if SIMULADO else "green")
+st.caption("A treasury agent that knows how far to trust its own cash forecast, and asks you when it can't.")
+with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+    for i, paso in enumerate(PASOS_KIT):
+        if i < actual:
+            st.badge(f"{i + 1} · {paso}", icon=":material/check:", color="green")
+        elif i == actual:
+            st.badge(f"{i + 1} · {paso}", icon=":material/arrow_forward:", color="primary")
+        else:
+            st.badge(f"{i + 1} · {paso}", color="gray")
+    if globex_pagado:
+        st.badge("Second pass: Globex paid", icon=":material/autorenew:", color="blue")
 if SIMULADO:
     st.caption(":material/science: **Demo mode, no keys:** a built-in simulator answers the same Airwallex API calls, "
                "with the rates and fees measured on the real sandbox. With sandbox keys in `.env`, the same buttons "
@@ -328,19 +349,26 @@ def motivo_rechazo(o) -> str:
     return o.policy_exception or "a person said no"
 usual = MODEL.pool_rate
 
-cols = st.columns(6)
-for col, divisa in zip(cols, ("USD", "EUR", "GBP")):
-    col.metric(f"{divisa} balance", dinero(s.saldos[divisa], divisa, 0), border=True, height="stretch",
-               help=f"Live from {DONDE}: {dinero(s.saldos[divisa], divisa)}")
-# la diferencia, entre las cifras ya redondeadas: 75 % frente a 81 % se lee «−6», no «−5»
-cols[3].metric("Confidence", f"{s.plan.confidence:.0%}", f"{round(s.plan.confidence * 100) - round(usual * 100):+d} pts",
-               delta_description=f"vs usual {usual:.0%}", border=True, height="stretch",
-               help="Amount-weighted probability that the receipts due in 72 h arrive on time")
-cols[4].metric("Agent FX limit", dinero(s.plan.fx_limit, decimales=0), border=True, height="stretch",
-               help="The agent converts up to this alone; above it, a person approves. "
-                    "It drops when this week looks worse than usual.")
-cols[5].metric("Above reserve", dinero(caja - POLICY.reserve_floor, decimales=0), border=True, height="stretch",
-               help=f"All balances in USD minus the {dinero(POLICY.reserve_floor, decimales=0)} reserve floor")
+# 12-nov: dos paneles (el dinero en Airwallex y cómo está el agente) en vez de seis cajas sueltas como en PayPal
+en_airwallex, el_agente = st.columns(2, gap="medium")
+with en_airwallex.container(border=True, height="stretch"):
+    st.markdown(f":material/account_balance_wallet: **On {DONDE} now**")
+    cols = st.columns(3)
+    for col, divisa in zip(cols, ("USD", "EUR", "GBP")):
+        col.metric(f"{divisa} balance", dinero(s.saldos[divisa], divisa, 0),
+                   help=f"Live from {DONDE}: {dinero(s.saldos[divisa], divisa)}")
+with el_agente.container(border=True, height="stretch"):
+    st.markdown(":material/tune: **The agent this week**")
+    cols = st.columns([1.35, 1, 1])  # la confianza lleva al lado «vs usual 81%»: necesita más sitio
+    # la diferencia, entre las cifras ya redondeadas: 75 % frente a 81 % se lee «−6», no «−5»
+    cols[0].metric("Confidence", f"{s.plan.confidence:.0%}",
+                   f"{round(s.plan.confidence * 100) - round(usual * 100):+d} pts", delta_description=f"vs usual {usual:.0%}",
+                   help="Amount-weighted probability that the receipts due in 72 h arrive on time")
+    cols[1].metric("Agent FX limit", dinero(s.plan.fx_limit, decimales=0),
+                   help="The agent converts up to this alone; above it, a person approves. "
+                        "It drops when this week looks worse than usual.")
+    cols[2].metric("Above reserve", dinero(caja - POLICY.reserve_floor, decimales=0),
+                   help=f"All balances in USD minus the {dinero(POLICY.reserve_floor, decimales=0)} reserve floor")
 
 QUE_DICE = {"confirms_payment": "{} confirmed its payment", "asks_for_more_time": "{} will pay late",
             "disputes_invoice": "{} disputes its invoice"}
