@@ -8,6 +8,8 @@
 
 A founder of a small multi-currency business has five bills due in the next 72 hours, in USD, EUR and GBP, and not enough cash to pay all of them without breaking the minimum reserve. Treasury Triage decides what to **fund, convert, defer or escalate**, does it on Airwallex, and **lowers its own autonomy when its receivables forecast becomes less reliable**.
 
+**Who it's for:** owners and finance leads of small businesses that pay suppliers in several currencies from Airwallex. It runs on their own account with a scoped API key: nothing to migrate. In 1,000 simulated weeks it cost about $940 a week less than rules with no forecast (see the evidence below).
+
 **What makes it different**
 - **A forecast with odds, checked on real data.** Each customer's chance of paying on time is learned from its history; on 4,995 real business invoices it was right to within 2.6 points on average.
 - **Autonomy that follows the forecast.** When this week's forecast is less reliable than usual, the agent cuts its own FX limit, and the same conversion now needs the owner.
@@ -41,7 +43,7 @@ Press the sidebar buttons in order and check what you should see:
 
 **Then try another week.** The **What if?** tab runs the same planner on a different week: other balances, bills, customer emails and FX moves, at today's rates. Press **Another scenario**, or change any number, and see which decisions move and why, against the demo's week. The rules don't move: the new supplier always goes to a person, and a conversion above the agent's limit needs one. Nothing in that tab touches Airwallex, Claude or Metal.
 
-**Proof it ran on the real sandbox:** [`evidencia/recibo_r20261029-011728.md`](evidencia/recibo_r20261029-011728.md) (29 Oct), [`evidencia/recibo_r20261106-204646.md`](evidencia/recibo_r20261106-204646.md) (6 Nov) and [`evidencia/recibo_r20261110-155432.md`](evidencia/recibo_r20261110-155432.md) (10 Nov, the round recorded for the demo video, with the owner's rejection and pause) list every conversion, transfer and deposit of a real demo round with its Airwallex id. Re-queried from Airwallex, every conversion and transfer is PAID or SETTLED (the 6 Nov one also lists a failed £0.13 opening sweep), Globex's deposit is matched to its invoice, and the audit trail is verified.
+**Proof it ran on the real sandbox:** [`evidencia/recibo_r20261029-011728.md`](evidencia/recibo_r20261029-011728.md) (29 Oct), [`evidencia/recibo_r20261106-204646.md`](evidencia/recibo_r20261106-204646.md) (6 Nov), [`evidencia/recibo_r20261110-155432.md`](evidencia/recibo_r20261110-155432.md) (10 Nov, with the owner's rejection and pause) and [`evidencia/recibo_r20261112-115904.md`](evidencia/recibo_r20261112-115904.md) (12 Nov, the round recorded for the demo video) list every conversion, transfer and deposit of a real demo round with its Airwallex id. Re-queried from Airwallex, every conversion and transfer is PAID or SETTLED (the 29 Oct and 6 Nov ones also list a failed £0.13 opening sweep), Globex's deposit is matched to its invoice, and the audit trail is verified.
 
 ## What it does
 
