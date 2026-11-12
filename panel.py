@@ -661,11 +661,12 @@ with auditoria:
                    + f". Check it yourself: {comprobar_auditoria()}", icon=":material/verified_user:")
     else:
         st.error(f"Audit trail check failed: {chequeo.problem}", icon=":material/gpp_bad:")
+    # 12-nov: los identificadores de Airwallex van antes que la clave y la hora, para que se lean sin desplazar la tabla
+    # en una pantalla de portátil (el jurado ve el vídeo así)
     movimientos = [{"Operation": f"owner {e.kind}" if e.op_key.startswith("control:") else e.op_key.split(":", 1)[0],
-                    "Key": e.op_key, "Attempt": e.attempt,
-                    "Amount": dinero(e.amount, e.currency) if e.currency else "", "Counterparty": e.counterparty,
-                    "Status": e.status,
-                    "Airwallex id": e.provider_id or "", "request_id": e.request_id, "Updated": e.updated_at[:19]}
+                    "Counterparty": e.counterparty, "Amount": dinero(e.amount, e.currency) if e.currency else "",
+                    "Status": e.status, "Airwallex id": e.provider_id or "", "request_id": e.request_id,
+                    "Key": e.op_key, "Attempt": e.attempt, "Updated": e.updated_at[:19]}
                    for e in libro.entries if f":{ronda}:" in e.op_key]
     if movimientos:
         st.dataframe(movimientos, hide_index=True, alt="Ledger entries for this demo round")
