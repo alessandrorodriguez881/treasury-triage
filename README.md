@@ -4,6 +4,8 @@
 
 **Demo video (4:04):** https://youtu.be/mX89FYLbse4
 
+**Live demo, no keys:** https://treasury-triage.streamlit.app (the demo mode described below, in the browser: nothing to install, and each visitor gets their own round)
+
 A founder of a small multi-currency business has five bills due in the next 72 hours, in USD, EUR and GBP, and not enough cash to pay all of them without breaking the minimum reserve. Treasury Triage decides what to **fund, convert, defer or escalate**, does it on Airwallex, and **lowers its own autonomy when its receivables forecast becomes less reliable**.
 
 **What makes it different**
@@ -14,6 +16,8 @@ A founder of a small multi-currency business has five bills due in the next 72 h
 ![Treasury Triage after steps 2 and 3: Claude read the inbox, so forecast confidence fell from 87% to 75% and the agent's FX limit from $10,000 to $2,500; the freight bill is paid and two FX conversions wait for the owner, each bound to an exact Airwallex quote, with the reason and the emails behind it](docs/pantalla.jpg)
 
 ## For judges: try it without keys
+
+Open the **live demo** at https://treasury-triage.streamlit.app, or run it locally:
 
 ```bash
 pip install -r requirements.txt

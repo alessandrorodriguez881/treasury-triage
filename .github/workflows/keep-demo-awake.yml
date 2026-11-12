@@ -1,0 +1,37 @@
+name: keep the live demo awake
+
+# Free Streamlit apps sleep after a while without visitors, and then take about a minute to wake up. This opens the
+# live demo every 6 hours (and wakes it if it is asleep), so a judge never lands on the sleeping page.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install playwright==1.48.0 && python -m playwright install --with-deps chromium
+      - name: Open the demo, and wake it if it sleeps
+        run: |
+          python - <<'PY'
+          from playwright.sync_api import sync_playwright
+
+          URL = "https://treasury-triage.streamlit.app"
+          with sync_playwright() as p:
+              navegador = p.chromium.launch()
+              pagina = navegador.new_page()
+              pagina.goto(URL, timeout=120_000)
+              pagina.wait_for_timeout(5_000)
+              boton = pagina.get_by_role("button", name="Yes, get this app back up!")
+              if boton.count():
+                  boton.click()
+                  print("The demo was asleep: woke it up")
+              pagina.wait_for_timeout(90_000)  # long enough for the app to load and count as a visit
+              print("Done:", pagina.title())
+              navegador.close()
+          PY
