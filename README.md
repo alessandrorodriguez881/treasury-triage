@@ -2,7 +2,7 @@
 
 **A treasury agent that knows how much to trust its own cash forecast.** Built for the Airwallex Agentic Banking Hackathon (Starter Kit 01, Adaptive Treasury Controller).
 
-**Demo video (3:53):** https://youtu.be/sX-PsRPf0ac
+**Demo video (4:04):** https://youtu.be/mX89FYLbse4
 
 A founder of a small multi-currency business has five bills due in the next 72 hours, in USD, EUR and GBP, and not enough cash to pay all of them without breaking the minimum reserve. Treasury Triage decides what to **fund, convert, defer or escalate**, does it on Airwallex, and **lowers its own autonomy when its receivables forecast becomes less reliable**.
 
