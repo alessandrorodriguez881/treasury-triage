@@ -1,4 +1,4 @@
-"""Vuelve a dejar el sandbox como al empezar la demo (38.000 $, 1.200 €, 0 £) y abre una ronda nueva.
+"""Vuelve a dejar el sandbox como al empezar la demo (39.000 $, 1.200 €, 0 £) y abre una ronda nueva.
 
 1. Ronda nueva: lo pagado, convertido o aprobado antes no cuenta para la nueva demo (sigue en el libro)
 2. Deposita lo que falte (depósito simulado) y manda el sobrante a la reserva del dueño (transferencia del sandbox)

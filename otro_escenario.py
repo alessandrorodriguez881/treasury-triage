@@ -126,8 +126,9 @@ def _controles() -> Semana:
             st.number_input(f"{divisa} balance", min_value=0.0, step=1_000.0, format="%.0f", key=clave)
     with st.container(horizontal=True):
         for clave, cliente in zip(("wi_acme", "wi_globex"), CLIENTES):
+            # 13-nov: wrap=True, para que «Disputes» baje a otra fila en vez de quedar oculta en un portátil
             st.segmented_control(f"{cliente}'s email · owes {COBROS[cliente][1]:,.0f} USD", list(RESPUESTAS),
-                                 format_func=RESPUESTAS.get, required=True, key=clave)
+                                 format_func=RESPUESTAS.get, required=True, key=clave, wrap=True)
     st.slider("EUR and GBP against USD", -10, 10, format="%+d%%", key="wi_fx")
     importes, dias = st.session_state["wi_facturas"]
     tabla = pd.DataFrame({"Bill": [f"{o.id} · {o.payee}" for o in OBLIGATIONS],
@@ -153,24 +154,28 @@ def _plan(s: Semana, rates: dict[str, float], accion: dict, estilo: dict, dinero
     caja = sum(a * tipos(s, rates)[d] for d, a in zip(DIVISAS, s.saldos))
     usual = MODEL.pool_rate
     st.markdown("**The agent's plan**")
-    m = st.columns(4)
-    m[0].metric("Confidence", f"{plan.confidence:.0%}", f"{round(plan.confidence * 100) - round(usual * 100):+d} pts",
-                delta_description=f"vs usual {usual:.0%}", border=True, height="stretch",
-                help="Amount-weighted probability that the receipts due in 72 h arrive on time")
-    m[1].metric("Agent FX limit", dinero(plan.fx_limit, decimales=0), border=True, height="stretch",
-                help="The agent converts up to this alone; above it, a person approves")
-    m[2].metric("Above reserve", dinero(caja - POLICY.reserve_floor, decimales=0), border=True, height="stretch",
-                help=f"All balances in USD minus the {dinero(POLICY.reserve_floor, decimales=0)} reserve floor")
-    m[3].metric("Reserve at risk", f"{plan.risk.p_breach:.1%}", border=True, height="stretch",
-                help=f"Chance of breaking the reserve in the next 72 h (the policy allows "
-                     f"{POLICY.max_breach_prob:.0%})")
+    # 13-nov: dos por fila (una si no caben). En cuatro columnas, las cifras salían cortadas en un portátil («$10,0…» a
+    # 1360 px). Con 185 px por cifra cabe «+6 pts vs usual 81%»
+    m = st.grid(2, min_column_width=185)
+    m.metric("Confidence", f"{plan.confidence:.0%}", f"{round(plan.confidence * 100) - round(usual * 100):+d} pts",
+             delta_description=f"vs usual {usual:.0%}", border=True, height="stretch",
+             help="Amount-weighted probability that the receipts due in 72 h arrive on time")
+    m.metric("Agent FX limit", dinero(plan.fx_limit, decimales=0), border=True, height="stretch",
+             help="The agent converts up to this alone; above it, a person approves")
+    m.metric("Above reserve", dinero(caja - POLICY.reserve_floor, decimales=0), border=True, height="stretch",
+             help=f"All balances in USD minus the {dinero(POLICY.reserve_floor, decimales=0)} reserve floor")
+    m.metric("Reserve at risk", f"{plan.risk.p_breach:.1%}", border=True, height="stretch",
+             help=f"Chance of breaking the reserve in the next 72 h (the policy allows "
+                  f"{POLICY.max_breach_prob:.0%})")
     convs, primera = {c.buy_currency: c for c in plan.conversions}, {}
     for o, d in zip(obligaciones(s), plan.decisions):
         primera.setdefault(o.currency, o.id)
-        c1, c2, c3 = st.columns([3, 3, 4], vertical_alignment="center")
+        # 13-nov: la decisión, debajo de la factura y no en una columna propia: en un portátil con el zoom de Windows
+        # al 125 % (unos 1.100 px de ancho), «A person decides» salía cortada
+        c1, c3 = st.columns([5, 4], vertical_alignment="center")
         c1.markdown(f"**{o.id}** · {o.payee}  \n{dinero(o.amount, o.currency, 0)} · due in {o.due_day} "
                     f"day{'s' if o.due_day != 1 else ''}")
-        with c2.container(horizontal=True, gap="small"):
+        with c1.container(horizontal=True, gap="small"):
             color, icono = estilo[d.action]
             st.badge(accion[d.action], icon=icono, color=color)
             if antes.get(o.id) != d.action:

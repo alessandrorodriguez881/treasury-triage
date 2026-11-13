@@ -19,8 +19,9 @@ import ajustar_saldos_demo
 import preparar_sandbox
 from aprobaciones import APROBACIONES, CON_RESERVA, cotizacion, rechazo_de_una_persona, titulo
 from comprobacion_metal import comprobaciones_de, precalentar, texto_tarjeta
-from demo import (ENV, comprobar_beneficiarios, conciliar, convertir, deposito_globex, esperar_conciliacion,
-                  hay_grabacion, huella, leer_correos, pagar, paso_siguiente, situacion, ya_conciliados, ya_hecho)
+from demo import (ENV, comprobar_beneficiarios, conciliar, convertir, deposito_globex, dia, esperar_conciliacion,
+                  fecha_grabacion, hay_grabacion, huella, leer_correos, pagar, paso_siguiente, situacion,
+                  ya_conciliados, ya_hecho)
 from demo import resumen as plan_para_claude
 from escenario import (BANDEJA, BASE, COBROS, CONCEPTOS, DATA, DIVISAS, MODEL, PAGO_GLOBEX, facturas_de,
                        facturas_proveedor, fecha_ronda, guardar_facturas, guardar_senales, nueva_ronda, receipts,
@@ -34,6 +35,7 @@ from triage_core.cash_simulation import cash_bands
 from triage_core.ledger import Ledger
 from triage_core.policy import FEE_CUSHION, PAYOUT_FEES, SIGNAL_LIKELIHOOD, TreasuryPolicy
 from triage_core.treasury_decision import CONVERT_AND_FUND, DEFER, ESCALATE, FUND, diff_plans
+from verificar_auditoria import empaquetar
 
 st.set_page_config(page_title="Treasury Triage", page_icon=":material/account_balance:", layout="wide")
 
@@ -62,12 +64,6 @@ def claude_disponible() -> bool:
 def dinero(cantidad: float, divisa: str = BASE, decimales: int = 2) -> str:
     cantidad = 0.0 if abs(cantidad) < 0.005 else cantidad  # sin «-0» por los céntimos de redondeo
     return f"{'-' if cantidad < 0 else ''}{SIMBOLO.get(divisa, '')}{abs(cantidad):,.{decimales}f}"  # -$4,884
-
-
-def comprobar_auditoria() -> str:
-    """La orden que comprueba este mismo libro desde la consola (en el modo demo, cada visitante tiene su carpeta)."""
-    carpeta = Path(os.path.relpath(DATA, Path(__file__).parent)).as_posix() if SIMULADO else ""
-    return f"python verificar_auditoria.py {carpeta}".rstrip()
 
 
 def md(texto: str) -> str:
@@ -172,7 +168,8 @@ def leer(log, con_claude: bool) -> None:
     guardar_senales(ronda, lectura.senales)
     despues = situacion(rail, libro, ronda, lectura.senales, globex_pagado, lectura.facturas)
     st.session_state.lectura = {"pasos": lectura.pasos, "resumen": lectura.resumen, "con_claude": con_claude,
-                                "plan": huella(lectura.plan)}
+                                "plan": huella(lectura.plan),
+                                "grabada": None if con_claude else fecha_grabacion()}  # sin clave: una repetición
     # lo que cambió la lectura, para el aviso de arriba (como el del cobro de Globex)
     st.session_state.leido = {"antes": antes.plan.confidence, "despues": despues.plan.confidence,
                               "fx_antes": antes.plan.fx_limit, "fx_despues": despues.plan.fx_limit,
@@ -349,15 +346,17 @@ def motivo_rechazo(o) -> str:
     return o.policy_exception or "a person said no"
 usual = MODEL.pool_rate
 
-# 12-nov: dos paneles (el dinero en Airwallex y cómo está el agente) en vez de seis cajas sueltas como en PayPal
-en_airwallex, el_agente = st.columns(2, gap="medium")
-with en_airwallex.container(border=True, height="stretch"):
+# 12-nov: dos paneles (el dinero en Airwallex y cómo está el agente) en vez de seis cajas sueltas como en PayPal.
+# 13-nov: en una rejilla. Si no caben uno al lado del otro con sus cifras enteras, va uno debajo del otro: a 1024 px de
+# ancho se cortaban («$39,…», «Agen…»). Con 420 px por panel, la cifra más estrecha tiene unos 105 px y necesita 94.
+paneles = st.grid(2, min_column_width=420, gap="medium", border=True)
+with paneles.cell():
     st.markdown(f":material/account_balance_wallet: **On {DONDE} now**")
     cols = st.columns(3)
     for col, divisa in zip(cols, ("USD", "EUR", "GBP")):
         col.metric(f"{divisa} balance", dinero(s.saldos[divisa], divisa, 0),
                    help=f"Live from {DONDE}: {dinero(s.saldos[divisa], divisa)}")
-with el_agente.container(border=True, height="stretch"):
+with paneles.cell():
     st.markdown(":material/tune: **The agent this week**")
     cols = st.columns([1.35, 1, 1])  # la confianza lleva al lado «vs usual 81%»: necesita más sitio
     # la diferencia, entre las cifras ya redondeadas: 75 % frente a 81 % se lee «−6», no «−5»
@@ -599,14 +598,18 @@ with hoy:
                 st.caption("The inbox has not been read in this round yet. Amounts, limits and approvals are "
                            "decided in code; Claude reads emails and invoices and explains.")
         with der:
+            # 13-nov: sin clave de Claude, el título dice que es la repetición de una lectura de verdad, y de qué día
+            grabada = lectura.get("grabada") if lectura else None
+            titulo_resumen = "Claude's briefing for the owner" + (f" · replay of its real run on {dia(grabada)}"
+                                                                  if grabada else "")
             if lectura and lectura["resumen"] and lectura.get("plan") not in (None, huella(plan_para_claude(s))):
                 st.info("Claude wrote its briefing before the latest changes (payments made or received since), so "
                         "its numbers are out of date. Everything else on this screen is current.",
-                        title="Claude's briefing for the owner", icon=":material/smart_toy:")
+                        title=titulo_resumen, icon=":material/smart_toy:")
                 with st.expander("The briefing as Claude wrote it (out of date)", icon=":material/history:"):
                     st.markdown(md(lectura["resumen"]))
             elif lectura and lectura["resumen"]:
-                st.info(md(lectura["resumen"]), title="Claude's briefing for the owner", icon=":material/smart_toy:")
+                st.info(md(lectura["resumen"]), title=titulo_resumen, icon=":material/smart_toy:")
             with st.expander(f"Supplier invoices ({len(facturas_proveedor(fecha_ronda(ronda)))})",
                              icon=":material/description:"):
                 st.caption("Payments always go to the beneficiary on file, never to an account read from an invoice.")
@@ -658,9 +661,18 @@ with auditoria:
         st.success(f"Audit trail verified: {chequeo.events} events, each chained to the one before by its hash, "
                    "and the ledger matches them"
                    + (f" ({chequeo.before_trail} older entries predate the trail)" if chequeo.before_trail else "")
-                   + f". Check it yourself: {comprobar_auditoria()}", icon=":material/verified_user:")
+                   + ".", icon=":material/verified_user:")
     else:
         st.error(f"Audit trail check failed: {chequeo.problem}", icon=":material/gpp_bad:")
+    # 13-nov: los dos archivos, para comprobarlos en otro equipo. Antes, una orden con la carpeta de este visitante, que
+    # en la web solo existe en el servidor (lo vio la revisión de ejecución del 12-nov)
+    if chequeo.events:
+        with st.container(horizontal=True, vertical_alignment="center"):
+            st.download_button("Download the audit files", empaquetar(libro), file_name=f"treasury-triage-audit-{ronda}.zip",
+                               mime="application/zip", icon=":material/download:", on_click="ignore")
+            st.caption("Check them on your own computer: unzip into a folder and run "
+                       "`python verificar_auditoria.py <folder>` from the repo. Edit, delete or reorder an event, or "
+                       "change the ledger by hand, and the check fails.")
     # 12-nov: los identificadores de Airwallex van antes que la clave y la hora, para que se lean sin desplazar la tabla
     # en una pantalla de portátil (el jurado ve el vídeo así)
     movimientos = [{"Operation": f"owner {e.kind}" if e.op_key.startswith("control:") else e.op_key.split(":", 1)[0],

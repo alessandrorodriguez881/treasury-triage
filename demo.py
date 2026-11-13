@@ -179,6 +179,15 @@ def hay_grabacion() -> bool:
     return GRABACION.exists()
 
 
+def fecha_grabacion() -> date | None:
+    """El día de la lectura de Claude de verdad que repite la demo cuando no hay clave de Claude."""
+    return date.fromisoformat(json.loads(GRABACION.read_text(encoding="utf-8"))["date"]) if hay_grabacion() else None
+
+
+def dia(d: date) -> str:
+    return f"{d.day} {d:%b %Y}"  # 29 Oct 2026
+
+
 def repetir_grabacion(hoy: date, recalcular: Callable[[list, list], dict]) -> Lectura:
     """Repite las llamadas de la última lectura de Claude de verdad. El código las vuelve a comprobar todas, igual
     que en directo (con los vencimientos movidos al día de esta ronda). El resumen es el que escribió Claude, solo
@@ -192,9 +201,14 @@ def repetir_grabacion(hoy: date, recalcular: Callable[[list, list], dict]) -> Le
     for s in g["signals"]:
         bandeja.record_signal(s["message_id"], s["customer"], s["signal"], s["quote"])
     bandeja.recompute_plan()
-    return Lectura(bandeja.senales, [f"Replay of a real Claude run on {g['date']} (no Claude key here): the same "
-                                     "tool calls, checked again by code"] + bandeja.registro,
-                   g["briefing"] if huella(bandeja.plan) == huella(g.get("plan")) else NO_CUADRA, bandeja.facturas, bandeja.plan)
+    # 13-nov: Claude empezó su resumen con «Treasury briefing for today (2026-10-29)», el día de la grabación, que no es
+    # el de la ronda (lo vio el jurado de la puerta 2). Se quita esa fecha: la pantalla dice que es una repetición y de
+    # qué día. El resto queda como lo escribió Claude
+    resumen = (g["briefing"].replace(f" ({g['date']})", "", 1) if huella(bandeja.plan) == huella(g.get("plan"))
+               else NO_CUADRA)
+    return Lectura(bandeja.senales, [f"Replay of a real Claude run on {dia(date.fromisoformat(g['date']))} (no Claude "
+                                     "key here): the same tool calls, checked again by code"] + bandeja.registro,
+                   resumen, bandeja.facturas, bandeja.plan)
 
 
 def leer_correos(rail: AirwallexRail, libro: Ledger, ronda: str, globex_pagado: bool, con_claude: bool,

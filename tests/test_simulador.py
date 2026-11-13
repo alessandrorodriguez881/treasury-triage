@@ -164,3 +164,13 @@ def test_the_recorded_claude_briefing_shows_in_the_demos_week(abierto, tmp_path)
     lectura = leer_correos(abierto, Ledger(tmp_path / "ledger.json"), RONDA, False, con_claude=False, repetir=True)
     assert lectura.pasos[0].startswith("Replay of a real Claude run")
     assert lectura.resumen != demo.NO_CUADRA
+
+
+def test_the_replayed_briefing_does_not_call_the_recording_day_today(abierto, tmp_path):
+    """Jurado de la puerta 2 (12-nov): en una ronda de noviembre, el resumen repetido decía «for today (2026-10-29)».
+    La fecha se quita del resumen; el primer paso dice que es una repetición y de qué día."""
+    lectura = leer_correos(abierto, Ledger(tmp_path / "ledger.json"), RONDA, False, con_claude=False, repetir=True)
+    grabada = demo.fecha_grabacion()
+    assert grabada.isoformat() not in lectura.resumen
+    assert lectura.resumen.startswith("**Treasury briefing for today**")
+    assert demo.dia(grabada) in lectura.pasos[0]
